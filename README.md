@@ -1,9 +1,28 @@
-# FlightBridge Grok — ЭКСПЕРИМЕНТ / В РАЗРАБОТКЕ
+# FlightBridge Grok — EXPERIMENTAL / WORK IN PROGRESS
 
-> **Это не готовая программа.** Репозиторий экспериментальный, код в активной разработке командой Grok.
->
-> **Не устанавливайте и не используйте на рабочих профилях симулятора**, пока здесь явно не появится стабильный релиз.
-> Сборки, если появятся, тоже считаются тестовыми. Оригинальный Codex-проект — отдельно: [Flight-Bridge](https://github.com/DenisUgarov/Flight-Bridge).
+> **This is not a finished product.** Experimental repository. Code is under active development by the Grok team.
+> **Do not install** and **do not use on live simulator profiles** until a stable release is clearly published here. Any builds are test-only.
+> Original Codex project (separate): [Flight-Bridge](https://github.com/DenisUgarov/Flight-Bridge).
+
+---
+
+### Same warning in every app language
+
+| Lang | Warning |
+|------|---------|
+| **English** | **EXPERIMENTAL / WORK IN PROGRESS.** Not a finished product. Do not install. Do not use on live MSFS profiles until a stable release is published. Test builds only. |
+| **Русский** | **ЭКСПЕРИМЕНТ / В РАЗРАБОТКЕ.** Это не готовая программа. Не устанавливайте. Не используйте на рабочих профилях симулятора, пока не будет стабильного релиза. Сборки — только тестовые. |
+| **Deutsch** | **EXPERIMENTELL / IN ENTWICKLUNG.** Kein fertiges Produkt. Nicht installieren. Nicht auf produktiven Simulator-Profilen verwenden, bis ein stabiles Release veröffentlicht ist. Builds nur zum Testen. |
+| **Français** | **EXPÉRIMENTAL / EN COURS DE DÉVELOPPEMENT.** Ce n’est pas un produit fini. Ne pas installer. Ne pas utiliser sur des profils simulateur de production tant qu’une version stable n’est pas publiée. Builds de test uniquement. |
+| **Español** | **EXPERIMENTAL / EN DESARROLLO.** No es un producto terminado. No instalar. No usar en perfiles reales del simulador hasta que haya una versión estable. Solo builds de prueba. |
+| **Italiano** | **SPERIMENTALE / IN SVILUPPO.** Non è un prodotto finito. Non installare. Non usare su profili reali del simulatore finché non viene pubblicata una release stabile. Solo build di test. |
+| **Português** | **EXPERIMENTAL / EM DESENVOLVIMENTO.** Não é um produto acabado. Não instalar. Não usar em perfis reais do simulador até haver um lançamento estável. Apenas builds de teste. |
+| **Polski** | **EKSPERYMENTALNE / W TRAKCIE PRAC.** To nie jest gotowy produkt. Nie instaluj. Nie używaj na roboczych profilach symulatora, dopóki nie będzie stabilnego wydania. Tylko buildy testowe. |
+| **Українська** | **ЕКСПЕРИМЕНТ / У РОЗРОБЦІ.** Це не готова програма. Не встановлюйте. Не використовуйте на робочих профілях симулятора, доки не буде стабільного релізу. Збірки лише тестові. |
+| **Türkçe** | **DENEYSEL / GELİŞTİRME AŞAMASINDA.** Bitmiş bir ürün değildir. Kurmayın. Kararlı sürüm yayınlanana kadar canlı simülatör profillerinde kullanmayın. Yalnızca test derlemeleri. |
+| **简体中文** | **实验性 / 开发中。** 这不是成品。请勿安装。在明确发布稳定版之前，请勿用于实际模拟器配置。构建版本仅供测试。 |
+| **日本語** | **実験的 / 開発中。** 完成品ではありません。インストールしないでください。安定版が公開されるまで、本番のシミュレーター設定では使わないでください。ビルドはテスト専用です。 |
+| **한국어** | **실험적 / 개발 중.** 완성된 제품이 아닙니다. 설치하지 마세요. 안정 버전이 명시적으로 나올 때까지 실제 시뮬레이터 프로필에 사용하지 마세요. 빌드는 테스트 전용입니다. |
 
 ---
 
