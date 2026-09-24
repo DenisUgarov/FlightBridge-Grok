@@ -29,7 +29,6 @@ public static class PreviewModelTests {
   if(!item.Warnings.Contains("GeneralCategoryCheck"))throw new Exception("general warn missing");
   if(!item.Warnings.Any(w=>w.IndexOf("→",StringComparison.Ordinal)>=0))throw new Exception("relocated warn missing");
 
-  // Message preferred when set
   item.Skipped[0].Message="human from core";
   if(item.Skipped[0].Message!="human from core")throw new Exception("message");
 
@@ -44,6 +43,8 @@ public static class PreviewModelTests {
   var conf=WriteConfirmation.Confirm(preview);
   if(!object.ReferenceEquals(conf.BoundPreview,preview))throw new Exception("confirm binding");
 
+  string[] auditKeys={"ImportSteps","AppsStillOpen","NoticeSteamCloud","NoticeStoreCloud","FallbackHint","ConfirmWriteBody","CoachSteps","TransferMessage","ExportDone","BackupChanged","TransferDone"};
+  string[] banned={"WGS","inputprofile","containers.index","ProductID","GUID","1250410","2537590",".xml"};
   foreach(var lang in AppLocalization.All){
    if(lang["SaveForImport"]=="SaveForImport")throw new Exception("missing SaveForImport "+lang.Code);
    if(lang["AppsStillOpen"]=="AppsStillOpen")throw new Exception("missing AppsStillOpen "+lang.Code);
@@ -53,13 +54,17 @@ public static class PreviewModelTests {
    string.Format(lang["ConfirmWriteBody"],"list");
    string.Format(lang["GeneralWarn"],"Profile");
    string.Format(lang["StatusStore"],"MSFS 2020","Steam",3);
-   // Human language audit: no technical tokens in EN/RU new strings
-   foreach(var key in new[]{"ImportSteps","AppsStillOpen","NoticeSteamCloud","FallbackHint","ConfirmWriteBody","CoachSteps"}){
+   foreach(var key in auditKeys){
     string s=lang[key];
-    foreach(var bad in new[]{"WGS","inputprofile","containers.index","ProductID","GUID","remote\\","1250410","2537590",".xml"}){
+    foreach(var bad in banned){
      if(s.IndexOf(bad,StringComparison.OrdinalIgnoreCase)>=0)throw new Exception(lang.Code+" "+key+" contains "+bad);
     }
+    if(s.IndexOf(":\\",StringComparison.Ordinal)>=0)throw new Exception(lang.Code+" "+key+" looks like a path");
+    string homeMarker=new string(new[]{'/','h','o','m','e','/'});
+    if(s.IndexOf(homeMarker,StringComparison.Ordinal)>=0)throw new Exception(lang.Code+" "+key+" looks like a home path");
    }
+   if(lang.Code=="en"&&lang["NoticeSteamCloud"].IndexOf("LOCAL",StringComparison.OrdinalIgnoreCase)<0)throw new Exception("steam notice");
+   if(lang.Code=="en"&&lang["NoticeStoreCloud"].IndexOf("Xbox",StringComparison.OrdinalIgnoreCase)<0)throw new Exception("store notice");
   }
   if(AppLocalization.Resolve("ru")["Restore"].IndexOf("как было",StringComparison.OrdinalIgnoreCase)<0)
    throw new Exception("RU Restore should be Вернуть как было");

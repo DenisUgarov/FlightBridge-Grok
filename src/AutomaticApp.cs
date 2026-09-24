@@ -17,7 +17,6 @@ public static class AutomaticApp {
  static bool render;
  static bool diagnosticsOnly;
  static bool transferDone;
- static string lastBackupFolder;
  static Window window;
  static StackPanel content;
  static TextBlock status;
@@ -219,9 +218,13 @@ public static class AutomaticApp {
 
  static string FormatWarning(PreviewItem item,string warning){
   if(string.Equals(warning,"GeneralCategoryCheck",StringComparison.OrdinalIgnoreCase))return F("GeneralWarn",item.TargetProfile);
-  if(warning==null)return null;
-  // Soften relocated lines: keep from→to, drop technical noise
-  return warning.Replace("контекст ","from ").Replace("Context ","");
+  if(string.IsNullOrWhiteSpace(warning))return null;
+  // Relocated KEY_* lines from Engine → plain phrase, never show codes.
+  int arrow=warning.IndexOf("→",StringComparison.Ordinal);
+  if(arrow<0)arrow=warning.IndexOf("->",StringComparison.Ordinal);
+  if(arrow>=0)return L("Reason_ContextMismatch");
+  if(warning.IndexOf("KEY_",StringComparison.OrdinalIgnoreCase)>=0)return L("Reason_ContextMismatch");
+  return L("Reason_ContextMismatch");
  }
 
  static void DrawSteamSelector(){
@@ -307,7 +310,7 @@ public static class AutomaticApp {
    if(answer!=MessageBoxResult.OK){ShowStatus(L("WriteRequiresConfirm"),true);return;}
    var confirmation=WriteConfirmation.Confirm(preview);
    string result=await Task.Run(()=>migration.WriteToGame(preview,confirmation));
-   lastBackupFolder=Path.GetDirectoryName(result);transferDone=true;Draw();
+   transferDone=true;Draw();
   }catch(Exception ex){if(LooksLikeAppsOpen(ex))DrawAppsOpen();else ShowStatus(ErrorText(ex),true);}finally{window.IsEnabled=true;}
  }
 
@@ -317,7 +320,10 @@ public static class AutomaticApp {
    var result=await Task.Run(()=>migration.ExportForImport(preview,null));
    try{Process.Start(new ProcessStartInfo{FileName=result.Folder,UseShellExecute=true});}catch{}
    ShowStatus(L("ExportDone"));
-   MessageBox.Show(window,L("ImportSteps"),L("ExportTitle"),MessageBoxButton.OK,MessageBoxImage.Information);
+   string tips=L("ImportSteps");
+   if(preview!=null&&preview.HasSteamStore)tips+="\n\n"+L("NoticeSteamCloud");
+   if(preview!=null&&preview.HasMicrosoftStore)tips+="\n\n"+L("NoticeStoreCloud");
+   MessageBox.Show(window,tips,L("ExportTitle"),MessageBoxButton.OK,MessageBoxImage.Information);
   }catch(Exception ex){ShowStatus(ErrorText(ex),true);}finally{window.IsEnabled=true;}
  }
 
