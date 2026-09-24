@@ -226,8 +226,14 @@ public static class AutomaticApp {
   var accounts=(preview!=null&&preview.CandidateSteamAccounts!=null&&preview.CandidateSteamAccounts.Count>0)
    ?preview.CandidateSteamAccounts
    :migration.ListSteamAccounts().Where(a=>a.HasMsfs2020&&a.HasMsfs2024).ToList();
-  var box=new ComboBox{Width=320,Height=32,HorizontalAlignment=HorizontalAlignment.Left,ItemsSource=accounts,Margin=new Thickness(0,8,0,8)};
-  if(accounts.Count>0)box.SelectedIndex=0;
+  // Display core-style ordinal labels (аккаунт 1 / Account 1) — never show raw Steam ids.
+  var labeled=new List<SteamAccount>();
+  for(int i=0;i<accounts.Count;i++){
+   var src=accounts[i];
+   labeled.Add(new SteamAccount{Id=src.Id,Name=(language.Code=="ru"?"Аккаунт ":"Account ")+(i+1),HasMsfs2020=src.HasMsfs2020,HasMsfs2024=src.HasMsfs2024});
+  }
+  var box=new ComboBox{Width=320,Height=32,HorizontalAlignment=HorizontalAlignment.Left,ItemsSource=labeled,Margin=new Thickness(0,8,0,8)};
+  if(labeled.Count>0)box.SelectedIndex=0;
   content.Children.Add(box);
   status=Text("",14);content.Children.Add(status);
   content.Children.Add(Button(L("SteamApply"),()=>{
