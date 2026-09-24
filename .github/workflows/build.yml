@@ -8,7 +8,17 @@ on:
   workflow_dispatch:
 
 jobs:
+  no-hardcoded-paths:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: No baked-in paths, user names or machine names
+        run: bash scripts/check-no-hardcoded-paths.sh
+
   build:
+    needs: no-hardcoded-paths
     runs-on: windows-latest
     defaults:
       run:
