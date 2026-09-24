@@ -29,16 +29,16 @@
 
 ## Что изменено относительно оригинала и почему
 
-- **Главный путь** — запись в уже зарегистрированные профили MSFS 2024 через фасад `Migration` поверх `MigrationTransaction` (полный бэкап, SHA-256, атомарная запись, автооткат). Экспорт файла (`ExportForImport`) — запасной сценарий, когда `CanWriteToGame=false` (см. `NextStep` / `FallbackReason`).
-- **Подтверждение** — `WriteConfirmation.Confirm(preview)` или `FromUiDialog(summary)` для UI. Без подтверждения или с подтверждением от другого превью запись отклоняется.
-- **Аккаунт Steam** выбирается сам, если ровно один аккаунт содержит профили обеих игр (1250410 и 2537590). Если таких аккаунтов несколько, `Prepare(null)` возвращает понятный Issue/NextStep «выберите аккаунт».
-- **Категория** для превью/экспорта берётся из профиля 2024; пары по категории не режутся. Для General — предупреждение.
-- **Однозначный перенос KEY_*** между контекстами остаётся включённым в авто-плане; каждый перенос — Warning. Пропуски пишутся в `SkippedBinding` (`Reason` машинный + `Message` простым языком).
-- **GUID** — только подсказка при нескольких кандидатах с одним ProductID+DeviceName.
-- **`remotecache.vdf` не меняется** (проверка хэша после записи). В Notices — подсказка про конфликт Steam Cloud (Upload local) и непроверенное облако Xbox.
-- **Диагностика** (`Diagnose`, `CreateDiagnosticReport`) — только чтение; отчёт без сырых путей и ID аккаунтов.
-- Папки бэкапа/экспорта/отчёта по умолчанию: Documents/Flight Bridge/... (параметр folder необязателен).
-
+- **Главный путь** — запись в уже зарегистрированные профили MSFS 2024 через фасад `Migration` / `MigrationTransaction` (полный бэкап в Documents/Flight Bridge/Backups, SHA-256, атомарная запись, проверка XML, автооткат). Экспорт файла (`ExportForImport`) — запасной сценарий при `CanWriteToGame=false` (поля `NextStep` / `FallbackReason`).
+- **Подтверждение** — `WriteConfirmation.Confirm(preview)` привязывает подтверждение к конкретному превью (свойство `BoundPreview`); UI также может вызвать `FromUiDialog(summary)`. Без подтверждения или с чужим превью запись отклоняется.
+- **Перед записью** — `AutoMigration.RequireClosed`: процессы MSFS 2020 (`FlightSimulator`), MSFS 2024 (`FlightSimulator2024`) и при Steam-хранилище — Steam.
+- **Обнаружение** — только во время работы: реестр Steam, libraryfolders.vdf, все аккаунты userdata, loginusers.vdf (MostRecent), LocalAppData/Packages по префиксам `Microsoft.FlightSimulator_*` / `Microsoft.Limitless_*`, запасные Program Files Steam. Корни передаются параметрами.
+- **Аккаунт Steam** — один dual (2020+2024) → он; несколько → ActiveUser (≠0), иначе MostRecent; затем запрос выбора.
+- **Категория** — из профиля 2024; пары по категории не режутся. Для General — Warning. Перенос KEY_* между контекстами включён; каждый перенос — Warning.
+- **Пропуски** — `SkippedBinding` с машинным `Reason` и простым `Message`.
+- **`remotecache.vdf` не меняется** (хэш после записи). Notices — Steam Cloud (Upload local) и непроверенное облако Xbox.
+- **Диагностика** (`Diagnose`, `CreateDiagnosticReport`) — только чтение; отчёт с замаскированными корнями и ID.
+- **Контракт UI** — имена DTO/методов совпадают с IMigrationService из `vibe/ui-preview-confirm`; файл MigrationContract.cs на эту ветку не копируется (см. `docs/CONTRACT_UI.md`).
 
 ## Исходная база (код 0.5.1)
 

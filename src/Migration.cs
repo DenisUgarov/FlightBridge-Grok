@@ -77,21 +77,24 @@ public sealed class BackupInfo {
 /// Opaque confirmation after preview. UI uses FromUiDialog(summary). Tests may use Confirm(preview) to bind to one preview instance.
 /// </summary>
 public sealed class WriteConfirmation {
+ /// <summary>UI contract name BoundPreview — same object Confirm(preview) was created from.</summary>
+ public MigrationPreview BoundPreview {get;private set;}
  public string AcknowledgedSummary {get;private set;}
- readonly MigrationPreview bound;
- WriteConfirmation(string summary,MigrationPreview preview){AcknowledgedSummary=summary;bound=preview;}
+ WriteConfirmation(MigrationPreview preview,string summary){BoundPreview=preview;AcknowledgedSummary=summary;}
+ /// <summary>UI dialog path (additive vs PR #2 contract, which only has Confirm).</summary>
  public static WriteConfirmation FromUiDialog(string acknowledgedSummary){
   if(string.IsNullOrWhiteSpace(acknowledgedSummary)) throw new ArgumentException("Confirmation summary is required.","acknowledgedSummary");
-  return new WriteConfirmation(acknowledgedSummary.Trim(),null);
+  return new WriteConfirmation(null,acknowledgedSummary.Trim());
  }
+ /// <summary>Binds confirmation to this preview instance. Rejected by WriteToGame if a different preview is passed.</summary>
  public static WriteConfirmation Confirm(MigrationPreview preview){
   if(preview==null) throw new ArgumentNullException("preview");
   if(!preview.CanWriteToGame) throw new InvalidOperationException("Preview is not writable to the game.");
-  return new WriteConfirmation("User confirmed preview",preview);
+  return new WriteConfirmation(preview,"ok:"+preview.Items.Count);
  }
  internal bool IsFor(MigrationPreview preview){
-  if(bound==null) return preview!=null; // FromUiDialog: any writable preview accepted
-  return object.ReferenceEquals(bound,preview);
+  if(BoundPreview==null) return preview!=null; // FromUiDialog: any writable preview accepted
+  return object.ReferenceEquals(BoundPreview,preview);
  }
 }
 

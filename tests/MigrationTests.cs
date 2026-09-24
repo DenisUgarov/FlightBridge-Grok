@@ -56,6 +56,9 @@ class MigrationTests {
   // Write without confirmation rejected
   var denied=Migration.WriteToGameResult(preview,null,backups);
   Check(!denied.Success,"write refused without confirmation");
+  var bound=WriteConfirmation.Confirm(preview);
+  Check(object.ReferenceEquals(bound.BoundPreview,preview),"Confirm binds BoundPreview to the same preview");
+
 
   // Confirmation bound to another preview rejected
   var other=Migration.Prepare(steam,local,null);

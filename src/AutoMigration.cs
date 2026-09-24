@@ -284,7 +284,20 @@ public static class AutoMigration {
   if(a.Changes.Count==0&&a.Issues.Count==0)a.Issues.Add(alreadyCurrent?"Все совместимые настройки уже перенесены. Повторная запись не требуется.":"Сначала один раз сохраните пользовательский профиль управления в MSFS 2024, закройте игру и повторите запуск Flight Bridge.");return a;
  }
  public static void RequireClosed(){RequireClosed(null);}
- public static void RequireClosed(IEnumerable<Installation> stores){bool steam=stores==null||stores.Any(s=>s.Edition=="Steam");foreach(var p in Process.GetProcesses()){using(p){string n;try{n=p.ProcessName;}catch{continue;}if(n.StartsWith("FlightSimulator",StringComparison.OrdinalIgnoreCase)||(steam&&(n.Equals("steam",StringComparison.OrdinalIgnoreCase)||n.Equals("steamwebhelper",StringComparison.OrdinalIgnoreCase))))throw new IOException(steam?"Полностью закройте Steam и оба симулятора, затем повторите действие.":"Полностью закройте оба симулятора, затем повторите действие.");}}}
+ public static void RequireClosed(IEnumerable<Installation> stores){
+  bool steam=stores==null||stores.Any(s=>s.Edition=="Steam");
+  foreach(var p in Process.GetProcesses()){
+   using(p){
+    string n;try{n=p.ProcessName;}catch{continue;}
+    // MSFS 2020: FlightSimulator; MSFS 2024: FlightSimulator2024 (and other FlightSimulator* variants).
+    bool sim=n.Equals("FlightSimulator",StringComparison.OrdinalIgnoreCase)
+     ||n.Equals("FlightSimulator2024",StringComparison.OrdinalIgnoreCase)
+     ||n.StartsWith("FlightSimulator",StringComparison.OrdinalIgnoreCase);
+    bool steamProc=steam&&(n.Equals("steam",StringComparison.OrdinalIgnoreCase)||n.Equals("steamwebhelper",StringComparison.OrdinalIgnoreCase)||n.Equals("steamservice",StringComparison.OrdinalIgnoreCase));
+    if(sim||steamProc) throw new IOException(steam?"Полностью закройте Steam, MSFS 2020 и MSFS 2024, затем повторите действие. / Fully close Steam, MSFS 2020 and MSFS 2024, then try again.":"Полностью закройте MSFS 2020 и MSFS 2024, затем повторите действие. / Fully close MSFS 2020 and MSFS 2024, then try again.");
+   }
+  }
+ }
  public static string RedactedReport(AutomaticPlan a){return "Flight Bridge 0.5.1\r\n"+string.Join("\r\n",a.Stores.Select(s=>s.Year+"; "+s.Edition+"; profiles="+s.Profiles.Count+"; unreadable="+s.Rejected+"; install="+(s.InstallPath!=null)))+"\r\nPlans="+a.Changes.Count+"; skipped="+a.Notices.Count+"; blockers="+a.Issues.Count+"\r\nNo user names, paths, device GUIDs or profile names included.";}
 }
 }
