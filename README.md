@@ -113,4 +113,20 @@ Framework, запускает все тесты и создаёт папку т�
 - Публичной Authenticode-подписи пока нет, поэтому Windows может показать обычное
   предупреждение неизвестного издателя.
 
-© 2026 Denis Ugarov
+
+## Сборка через GitHub Actions
+
+На каждый pull request и на push в `main` Actions собирает проект на
+`windows-latest` (сценарий `./build.ps1`) и выкладывает артефакты:
+
+- **FlightBridge-portable** — портативный `FlightBridge.exe` с README (и zip);
+- **FlightBridge-release** — вся папка выпуска (`INSTALL …exe`, portable, zip, `SHA256.txt`).
+
+Скачать: вкладка **Actions** → нужный прогон → раздел **Artifacts** внизу справа.
+Черновик GitHub Release (по тегу `v*`) собирается отдельным workflow и по
+умолчанию остаётся draft.
+
+Подробное описание логики переноса (как в оригинальном коде): [docs/LOGIC.md](docs/LOGIC.md).
+Лицензия: [LICENSE](LICENSE) (MIT).
+
+© 2026 Denis Ugarov · лицензия [MIT](LICENSE)
