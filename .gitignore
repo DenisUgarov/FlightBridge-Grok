@@ -26,3 +26,6 @@ CONTINUE_HERE.txt
 PROJECT_STATUS.md
 FILE_MANIFEST_SHA256.txt
 
+
+# Generated from src/SetupLanguages.xml by scripts/GenerateGuides.ps1
+docs/README.*.md
