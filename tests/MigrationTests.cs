@@ -167,6 +167,20 @@ class MigrationTests {
   }
 
 
+
+  // Paths under LocalAppData (Windows %TEMP%) must still mask userdata\<account>.
+  {
+   string localBase=Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+   if(string.IsNullOrEmpty(localBase)) localBase=Path.GetTempPath();
+   string maskRoot=Path.Combine(localBase,"FlightBridge-masktest-"+Guid.NewGuid().ToString("N"));
+   string maskSteam=SetupSteamPair(maskRoot);
+   var maskPreview=Migration.Prepare(maskSteam,Path.Combine(maskRoot,"local"),null);
+   string maskReport=Migration.CreateDiagnosticReport(Path.Combine(maskRoot,"diag"),maskPreview);
+   string maskText=File.ReadAllText(maskReport);
+   Check(!Regex.IsMatch(maskText,@"userdata\\123"),"report masks steam account even under LocalAppData/Temp");
+   try{Directory.Delete(maskRoot,true);}catch{}
+  }
+
   // Optional folder defaults
   var preview2=Migration.Prepare(steam,local,"123");
   if(preview2.CanExport){

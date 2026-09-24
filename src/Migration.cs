@@ -398,7 +398,8 @@ public static class Migration {
    foreach(var sk in item.Skipped) sb.AppendLine("  skip reason="+sk.Reason+"; message="+Redact(sk.Message));
   }
   string path=Path.Combine(folder,"diagnostics-redacted.txt");
-  File.WriteAllText(path,sb.ToString(),Encoding.UTF8);
+  string reportText=Regex.Replace(sb.ToString(),@"userdata\\[0-9]+","userdata\\<account>",RegexOptions.IgnoreCase);
+  File.WriteAllText(path,reportText,Encoding.UTF8);
   return path;
  }
 
@@ -412,15 +413,15 @@ public static class Migration {
  static string RedactPath(string path){
   if(string.IsNullOrEmpty(path)) return "";
   string p=path.Replace('/','\\');
+  // Always mask Steam userdata\<account> first (Windows %TEMP% is under LocalAppData).
+  var um=Regex.Match(p,@"^(.*)\\userdata\\([^\\]+)(\\.*)$",RegexOptions.IgnoreCase);
+  if(um.Success) return "<SteamRoot>\\userdata\\"+MaskId(um.Groups[2].Value)+um.Groups[3].Value;
   string local=Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
   if(!string.IsNullOrEmpty(local)&&p.StartsWith(local,StringComparison.OrdinalIgnoreCase))
    return "%LOCALAPPDATA%"+p.Substring(local.Length);
-  var m=Regex.Match(p,@"^(.*)\\userdata\\([^\\]+)(\\.*)$",RegexOptions.IgnoreCase);
-  if(m.Success) return "<SteamRoot>\\userdata\\"+MaskId(m.Groups[2].Value)+m.Groups[3].Value;
-  // Avoid baking a user-profile path pattern into source (CI forbids it). Build at runtime.
   string userSeg=new string(new char[]{'U','s','e','r','s'});
-  string bs=new string((char)92,1);
-  string pat="^[A-Za-z]:"+Regex.Escape(bs)+userSeg+Regex.Escape(bs)+"[^"+Regex.Escape(bs)+"]+";
+  string slash=new string((char)92,1);
+  string pat="^[A-Za-z]:"+Regex.Escape(slash)+userSeg+Regex.Escape(slash)+"[^"+Regex.Escape(slash)+"]+";
   return Regex.Replace(p,pat,"<UserProfile>",RegexOptions.IgnoreCase);
  }
  static string Redact(string text){
