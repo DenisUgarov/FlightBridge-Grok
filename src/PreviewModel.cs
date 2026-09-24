@@ -142,5 +142,37 @@ public static class PreviewModel {
   }
   return false;
  }
+
+ /// <summary>
+ /// Human warning text for UI. Prefers a core human Message; maps known kinds;
+ /// unknown technical tokens get a neutral phrase (never dump KEY_/paths).
+ /// </summary>
+ public static string FormatWarning(AppLanguage lang,string targetProfile,string warning){
+  if(lang==null)throw new ArgumentNullException("lang");
+  if(string.IsNullOrWhiteSpace(warning))return null;
+  // Known kind: general category → check in game after transfer.
+  if(string.Equals(warning,"GeneralCategoryCheck",StringComparison.OrdinalIgnoreCase))
+   return string.Format(lang["GeneralWarn"],targetProfile??"");
+  // Known kind: relocation between contexts (Engine KEY_* OLD → NEW lines).
+  int arrow=warning.IndexOf("→",StringComparison.Ordinal);
+  if(arrow<0)arrow=warning.IndexOf("->",StringComparison.Ordinal);
+  if(arrow>=0||warning.IndexOf("KEY_",StringComparison.OrdinalIgnoreCase)>=0)
+   return lang["Reason_ContextMismatch"];
+  // Core already sent a human Message (prose, not a kind code).
+  if(IsHumanWarningMessage(warning))return warning.Trim();
+  // Unknown → neutral generic (RU+EN provided via localization).
+  return lang["Reason_CheckAssignment"];
+ }
+
+ public static bool IsHumanWarningMessage(string warning){
+  if(string.IsNullOrWhiteSpace(warning))return false;
+  string w=warning.Trim();
+  if(w.IndexOf("KEY_",StringComparison.OrdinalIgnoreCase)>=0)return false;
+  if(w.IndexOf("→",StringComparison.Ordinal)>=0||w.IndexOf("->",StringComparison.Ordinal)>=0)return false;
+  if(string.Equals(w,"GeneralCategoryCheck",StringComparison.OrdinalIgnoreCase))return false;
+  // Kind-like tokens without spaces are not human messages.
+  if(w.IndexOf(' ')<0&&w.IndexOf('—')<0&&w.Length<40&&w.All(c=>char.IsLetterOrDigit(c)||c=='_'))return false;
+  return true;
+ }
 }
 }

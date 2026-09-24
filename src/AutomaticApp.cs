@@ -229,14 +229,7 @@ public static class AutomaticApp {
  }
 
  static string FormatWarning(PreviewItem item,string warning){
-  if(string.Equals(warning,"GeneralCategoryCheck",StringComparison.OrdinalIgnoreCase))return F("GeneralWarn",item.TargetProfile);
-  if(string.IsNullOrWhiteSpace(warning))return null;
-  // Relocated KEY_* lines from Engine → plain phrase, never show codes.
-  int arrow=warning.IndexOf("→",StringComparison.Ordinal);
-  if(arrow<0)arrow=warning.IndexOf("->",StringComparison.Ordinal);
-  if(arrow>=0)return L("Reason_ContextMismatch");
-  if(warning.IndexOf("KEY_",StringComparison.OrdinalIgnoreCase)>=0)return L("Reason_ContextMismatch");
-  return L("Reason_ContextMismatch");
+  return PreviewModel.FormatWarning(language,item!=null?item.TargetProfile:null,warning);
  }
 
  static void DrawSteamSelector(){
