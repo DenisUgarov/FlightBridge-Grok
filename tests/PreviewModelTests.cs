@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using FSMigrator;
 
 public static class PreviewModelTests {
@@ -8,11 +9,11 @@ public static class PreviewModelTests {
   plan.Stores.Add(new Installation{Year="2020",Edition="Steam",Account="111",Root="C:\\a"});
   plan.Stores.Add(new Installation{Year="2024",Edition="Steam",Account="111",Root="C:\\b"});
   var source=Synthetic("src","Stick");
-  var target=Synthetic("dst","Stick");
+  var target=Synthetic("dst","Stick"); // no AircraftInfo => General category
   var change=new Plan{Source=source,Target=target,Copied=12,Axes=3,OutputName="dst"};
   change.Skipped.Add("COCKPIT / KEY_FLIP — нет однозначного совпадения команды");
   change.Skipped.Add("MISC / KEY_X — неизвестный формат привязки");
-  change.Warnings.Add("check me");
+  change.Warnings.Add("KEY_X — контекст OLD → NEW; проверьте действие в игре");
   plan.Changes.Add(change);
 
   var preview=PreviewModel.FromPlan(plan);
@@ -24,7 +25,8 @@ public static class PreviewModelTests {
   if(item.Skipped.Count!=2)throw new Exception("skipped");
   if(item.Skipped[0].Reason!="NoTargetAction")throw new Exception("reason0="+item.Skipped[0].Reason);
   if(item.Skipped[0].Action!="KEY_FLIP")throw new Exception("action");
-  if(!item.Warnings.Contains("check me"))throw new Exception("warnings");
+  if(!item.Warnings.Contains("GeneralCategoryCheck"))throw new Exception("general warn missing");
+  if(!item.Warnings.Any(w=>w.IndexOf("→",StringComparison.Ordinal)>=0))throw new Exception("relocated warn missing");
 
   var multi=new MigrationPreview{Issues=new List<string>{"MultipleSteamAccounts"}};
   if(!PreviewModel.NeedsSteamSelection(multi))throw new Exception("steam");
@@ -34,10 +36,17 @@ public static class PreviewModelTests {
 
   foreach(var lang in AppLocalization.All){
    if(lang["SaveForImport"]=="SaveForImport")throw new Exception("missing SaveForImport "+lang.Code);
+   if(lang["DiagnosticsOnly"]=="DiagnosticsOnly")throw new Exception("missing DiagnosticsOnly "+lang.Code);
+   if(lang["StatusTitle"]=="StatusTitle")throw new Exception("missing StatusTitle "+lang.Code);
    string.Format(lang["ConfirmWriteBody"],"list");
    string.Format(lang["ImportSteps"],"C:\\x");
    string.Format(lang["SkippedItem"],"A","B","C");
+   string.Format(lang["GeneralWarn"],"Profile");
+   string.Format(lang["StatusStore"],"MSFS 2020","Steam",3);
+   string.Format(lang["StatusMatched"],1,2,3);
   }
+  if(AppLocalization.Resolve("ru")["Restore"].IndexOf("как было",StringComparison.OrdinalIgnoreCase)<0)
+   throw new Exception("RU Restore should be Вернуть как было");
   Console.WriteLine("PreviewModel and new localization keys passed.");
   return 0;
  }

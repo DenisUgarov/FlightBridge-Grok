@@ -7,7 +7,7 @@ namespace FSMigrator {
 /// <summary>
 /// Temporary bridge from the UI contract (prog/export-default-core) onto current
 /// AutoMigration / Engine.Export / Library.ExportBatch / MigrationTransaction.
-/// Replace with Programming's Migration implementation on merge; keep UI calls intact.
+/// WriteToGame is the product main path; ExportForImport is fallback. Replace with Programming's Migration on merge; keep UI calls intact.
 /// </summary>
 public sealed class LegacyMigrationAdapter : IMigrationService {
  readonly Dictionary<string,string> profileChoices;

@@ -33,10 +33,26 @@ public static class PreviewModel {
     Bindings=change.Copied,
     Axes=change.Axes,
     Skipped=ParseSkipped(change.Skipped),
-    Warnings=new List<string>(change.Warnings??new List<string>())
+    Warnings=EnrichWarnings(change)
    });
   }
   return preview;
+ }
+
+ static List<string> EnrichWarnings(Plan change){
+  var list=new List<string>(change.Warnings??new List<string>());
+  string cat=change.Target!=null?change.Target.Category:"";
+  if(IsGeneralCategory(cat))list.Insert(0,"GeneralCategoryCheck");
+  return list;
+ }
+
+ public static bool IsGeneralCategory(string category){
+  if(string.IsNullOrWhiteSpace(category))return true;
+  string n=category.Trim();
+  return n.Equals("Общее управление",StringComparison.OrdinalIgnoreCase)
+   ||n.Equals("General",StringComparison.OrdinalIgnoreCase)
+   ||n.IndexOf("General",StringComparison.OrdinalIgnoreCase)>=0
+   ||n.IndexOf("Общее",StringComparison.OrdinalIgnoreCase)>=0;
  }
 
  static string DescribeStore(List<Installation> stores,string year){

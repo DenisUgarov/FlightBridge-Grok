@@ -4,6 +4,7 @@ using System.Collections.Generic;
 namespace FSMigrator {
 // Contract owned by prog/export-default-core — remove duplicates on merge.
 // Temporary DTO mirror so the UI can compile against main and later repoint to Programming's types.
+// Product decision (PROJECT_STATUS): WriteToGame is the main path; ExportForImport is fallback only.
 
 public sealed class SkippedBinding {
  public string Action {get;set;}
@@ -50,7 +51,7 @@ public sealed class ExportResult {
  public ExportResult(){Files=new List<string>();}
 }
 
-/// <summary>Opaque token: only the red UI confirmation dialog may create it.</summary>
+/// <summary>Opaque token from the normal UI confirmation dialog after preview (not a red danger dialog).</summary>
 public sealed class WriteConfirmation {
  public string AcknowledgedSummary {get;private set;}
  WriteConfirmation(string summary){AcknowledgedSummary=summary;}
