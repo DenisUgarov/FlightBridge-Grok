@@ -17,7 +17,16 @@ public static class AutomaticApp {
  static bool render;
  static bool diagnosticsOnly;
  static bool transferDone;
+ static bool restoreBusy;
  static string lastBackupFolder;
+ static IUpdater updater;
+ static Func<DateTime> updateClock=()=>DateTime.UtcNow;
+ static UpdateInfo pendingUpdate;
+ static bool updateApplying;
+ static int updateProgress;
+ static string updateStatusMessage;
+ static Border updateBannerHost;
+
  static Window window;
  static StackPanel content;
  static TextBlock status;
@@ -63,6 +72,8 @@ public static class AutomaticApp {
  static Border Card(UIElement child){return new Border{Child=child,Background=Gradient(252,253,254,228,232,237),BorderBrush=new SolidColorBrush(Color.FromRgb(174,181,190)),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(12),Padding=new Thickness(20),Margin=new Thickness(0,9,0,9),Effect=new DropShadowEffect{BlurRadius=14,ShadowDepth=2,Opacity=0.16,Color=Colors.Black}};}
  static void ShowStatus(string message,bool error=false){if(status==null)return;status.Text=message;status.Foreground=new SolidColorBrush(error?Color.FromRgb(166,54,54):Color.FromRgb(64,91,74));}
  static IMigrationService CreateMigration(){return new LegacyMigrationAdapter(backupRoot);}
+ static IUpdater CreateUpdater(){return new StubUpdater(updateClock);}
+ static bool transferBusy;
  static TextBlock Link(string label,Action action){
   var block=new TextBlock{Margin=new Thickness(0,4,16,4),Cursor=System.Windows.Input.Cursors.Hand,FontSize=11,Opacity=0.75};
   var run=new Run(label){Foreground=new SolidColorBrush(Color.FromRgb(80,100,130)),TextDecorations=TextDecorations.Underline};
@@ -74,7 +85,8 @@ public static class AutomaticApp {
   string selected=null;try{if(File.Exists(LanguagePreference))selected=File.ReadAllText(LanguagePreference).Trim();else{string installed=Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"language.txt");if(File.Exists(installed))selected=File.ReadAllText(installed).Trim();}}catch{}
   language=AppLocalization.Resolve(!string.IsNullOrWhiteSpace(languageOverride)?languageOverride:string.IsNullOrWhiteSpace(selected)?System.Globalization.CultureInfo.CurrentUICulture.Name:selected);
   try{if(File.Exists(Preferences)){string saved=File.ReadAllText(Preferences).Trim();if(Path.IsPathRooted(saved))backupRoot=saved;}}catch{}
-  migration=CreateMigration();
+  migration=CreateMigration();updater=CreateUpdater();
+  try{updater.CleanupOnStart();}catch{}
   var app=new Application();content=new StackPanel{Margin=new Thickness(44,28,44,32)};
   var shell=new Grid{Background=Gradient(239,241,244,198,204,211)};shell.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});shell.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});shell.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
   var titleGrid=new Grid();titleGrid.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(210)});titleGrid.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(1,GridUnitType.Star)});titleGrid.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(210)});
@@ -94,6 +106,7 @@ public static class AutomaticApp {
    preview=await Task.Run(()=>diagnosticsOnly?migration.Diagnose():migration.Prepare(selectedSteamAccount));
    legacyRepair=diagnosticsOnly?null:SafeLegacy();
    Draw();
+   ScheduleUpdateCheck();
   }catch(Exception ex){if(LooksLikeAppsOpen(ex))DrawAppsOpen();else DrawFailure(L("OperationFailed"),ErrorText(ex));}
   finally{window.IsEnabled=true;if(render)RenderAndClose();}
  }
@@ -285,10 +298,93 @@ public static class AutomaticApp {
   var row=new WrapPanel{Margin=new Thickness(0,22,0,0)};
   row.Children.Add(Link(L("ChangeBackup"),ChooseBackupRoot));
   row.Children.Add(Link(L("SaveReport"),SaveDiagnostic));
+  row.Children.Add(Link(L("Settings"),ToggleSettingsPanel));
   if(!diagnosticsOnly)row.Children.Add(Link(L("DiagnosticsOnly"),()=>{diagnosticsOnly=true;window.Title="Flight Bridge — "+L("DiagnosticsOnly");Scan();}));
   else row.Children.Add(Link(L("ExitDiagnostics"),()=>{diagnosticsOnly=false;window.Title="Flight Bridge";Scan();}));
   content.Children.Add(row);
+  DrawSettingsPanel();
+  DrawUpdateBanner();
  }
+
+ static bool settingsOpen;
+ static void ToggleSettingsPanel(){settingsOpen=!settingsOpen;Draw();}
+ static void DrawSettingsPanel(){
+  if(!settingsOpen)return;
+  var panel=new StackPanel();
+  panel.Children.Add(Text(L("Settings"),14));
+  var s=updater.LoadSettings();
+  var box=new CheckBox{Content=L("UpdateCheckEnabled"),IsChecked=s.Enabled,Margin=new Thickness(0,6,0,6),FontSize=13};
+  box.Checked+=(a,b)=>{var cur=updater.LoadSettings();cur.Enabled=true;updater.SaveSettings(cur);};
+  box.Unchecked+=(a,b)=>{var cur=updater.LoadSettings();cur.Enabled=false;updater.SaveSettings(cur);pendingUpdate=null;DrawUpdateBanner();};
+  panel.Children.Add(box);
+  panel.Children.Add(Button(L("UpdateCheckNow"),()=>ManualUpdateCheck(),false));
+  content.Children.Add(Card(panel));
+ }
+
+ static void DrawUpdateBanner(){
+  // Remove previous host if re-drawing mid-flight is awkward; Draw() clears content first.
+  if(!UpdateBannerLogic.ShouldShow(updater.LoadSettings(),pendingUpdate,transferBusy||restoreBusy||updateApplying,updateClock()))return;
+  var info=pendingUpdate;
+  var line=new StackPanel{Orientation=Orientation.Horizontal};
+  line.Children.Add(new TextBlock{Text=F("UpdateAvailable",info.Version),FontSize=12,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(0,0,12,0)});
+  line.Children.Add(QuietButton(L("UpdateNow"),()=>ApplyUpdate(info)));
+  line.Children.Add(QuietButton(L("UpdateLater"),()=>{updater.RemindLater(7);pendingUpdate=null;Draw();}));
+  line.Children.Add(QuietButton(L("UpdateSkip"),()=>{updater.SkipVersion(info);pendingUpdate=null;Draw();}));
+  line.Children.Add(Link(L("UpdateNever"),()=>{var s=updater.LoadSettings();s.Enabled=false;updater.SaveSettings(s);pendingUpdate=null;Draw();}));
+  if(updateApplying)line.Children.Add(new TextBlock{Text=F("UpdateProgress",updateProgress),FontSize=11,Margin=new Thickness(12,0,0,0),VerticalAlignment=VerticalAlignment.Center});
+  if(!string.IsNullOrEmpty(updateStatusMessage))line.Children.Add(new TextBlock{Text=updateStatusMessage,FontSize=11,Margin=new Thickness(12,0,0,0),Foreground=new SolidColorBrush(Color.FromRgb(140,70,70)),VerticalAlignment=VerticalAlignment.Center});
+  var banner=new Border{Child=line,BorderBrush=new SolidColorBrush(Color.FromRgb(180,186,194)),BorderThickness=new Thickness(0,1,0,0),Padding=new Thickness(0,10,0,4),Margin=new Thickness(0,18,0,0)};
+  content.Children.Add(banner);
+ }
+
+ static Button QuietButton(string label,Action action){
+  var button=new Button{Content=label,Padding=new Thickness(10,4,10,4),Margin=new Thickness(0,0,8,0),FontSize=12,Template=ButtonTemplate(),Background=Gradient(250,251,252,220,224,230),Foreground=new SolidColorBrush(Color.FromRgb(42,49,58))};
+  button.Click+=(s,e)=>{try{action();}catch{}};return button;
+ }
+
+ static async void ScheduleUpdateCheck(){
+  try{
+   if(transferBusy||restoreBusy||updateApplying)return;
+   var settings=updater.LoadSettings();
+   if(!settings.Enabled)return; // zero network when disabled
+   var info=await updater.CheckAsync(settings,false);
+   pendingUpdate=info;
+   if(UpdateBannerLogic.ShouldShow(settings,info,transferBusy||restoreBusy||updateApplying,updateClock()))
+    window.Dispatcher.BeginInvoke(new Action(()=>{if(!(transferBusy||restoreBusy)){/* append without full redraw if possible */} Draw();}));
+  }catch{/* silent */}
+ }
+
+ static async void ManualUpdateCheck(){
+  try{
+   var settings=updater.LoadSettings();
+   var info=await updater.CheckAsync(settings,true);
+   pendingUpdate=info;
+   if(info==null){ShowStatus(L("UpdateNone"));return;}
+   Draw();
+  }catch{ShowStatus(L("UpdateNone"));}
+ }
+
+ static async void ApplyUpdate(UpdateInfo info){
+  if(info==null||updateApplying)return;
+  updateApplying=true;updateProgress=0;updateStatusMessage=null;Draw();
+  try{
+   var progress=new Progress<int>(p=>{updateProgress=p;});
+   var result=await updater.ApplyAsync(info,progress);
+   if(result!=null&&result.Ok){
+    updateStatusMessage=null;
+    if(result.RestartRequired){
+     try{Process.Start(new ProcessStartInfo{FileName=System.Reflection.Assembly.GetExecutingAssembly().Location,UseShellExecute=true});}catch{}
+     Application.Current.Shutdown();return;
+    }
+    pendingUpdate=null;ShowStatus(L("UpdateDone"));
+   }else{
+    updateStatusMessage=L("UpdateFailed");
+    ShowStatus(L("UpdateFailed"));
+   }
+  }catch{updateStatusMessage=L("UpdateFailed");ShowStatus(L("UpdateFailed"));}
+  finally{updateApplying=false;Draw();}
+ }
+
 
  static void DrawFailure(string heading,string message){content.Children.Clear();content.Children.Add(Text("Flight Bridge",30));content.Children.Add(Text(heading,22));status=Text(message,15,new SolidColorBrush(Color.FromRgb(166,54,54)));content.Children.Add(status);content.Children.Add(Button(L("Rescan"),Scan,true));content.Children.Add(Button(L("SaveReport"),SaveDiagnostic));}
  static void ChangeLanguage(AppLanguage selected){if(selected==null||selected.Code==language.Code)return;language=selected;Directory.CreateDirectory(Path.GetDirectoryName(LanguagePreference));File.WriteAllText(LanguagePreference,language.Code);Draw();}
@@ -296,7 +392,7 @@ public static class AutomaticApp {
  static void SaveDiagnostic(){try{string path=migration.CreateDiagnosticReport(null);ShowStatus(L("DiagnosticSaved"));}catch(Exception ex){ShowStatus(ErrorText(ex),true);}}
 
  static async void TransferToGame(){
-  window.IsEnabled=false;try{
+  window.IsEnabled=false;transferBusy=true;try{
    if(legacyRepair!=null){await RunLegacyRepairThenRefresh();if(preview==null||!preview.CanWriteToGame)return;}
    if(preview==null||!preview.CanWriteToGame)throw new IOException(L("NothingToExport"));
    try{AutoMigration.RequireClosed(preview.UnderlyingPlan.Stores);}
@@ -308,7 +404,7 @@ public static class AutomaticApp {
    var confirmation=WriteConfirmation.Confirm(preview);
    string result=await Task.Run(()=>migration.WriteToGame(preview,confirmation));
    lastBackupFolder=Path.GetDirectoryName(result);transferDone=true;Draw();
-  }catch(Exception ex){if(LooksLikeAppsOpen(ex))DrawAppsOpen();else ShowStatus(ErrorText(ex),true);}finally{window.IsEnabled=true;}
+  }catch(Exception ex){if(LooksLikeAppsOpen(ex))DrawAppsOpen();else ShowStatus(ErrorText(ex),true);}finally{transferBusy=false;window.IsEnabled=true;}
  }
 
  static async void ExportForImport(){
@@ -329,14 +425,14 @@ public static class AutomaticApp {
 
  static async void RestoreFromBackup(){
   if(diagnosticsOnly){ShowStatus(L("DiagnosticsBanner"),true);return;}
-  window.IsEnabled=false;try{
+  window.IsEnabled=false;restoreBusy=true;try{
    var backups=migration.ListBackups();
    var selected=backups.FirstOrDefault(b=>b.State=="Pending"||b.State=="Restoring")
     ??backups.FirstOrDefault(b=>b.State=="Completed"&&SafeEffective(b.Manifest));
    if(selected==null)throw new IOException(L("NoBackup"));
    await Task.Run(()=>migration.Restore(selected));
    ShowStatus(L("Restored"));MessageBox.Show(window,L("Restored"),L("RestoreTitle"),MessageBoxButton.OK,MessageBoxImage.Information);
-  }catch(Exception ex){if(LooksLikeAppsOpen(ex))DrawAppsOpen();else ShowStatus(ErrorText(ex),true);}finally{window.IsEnabled=true;}
+  }catch(Exception ex){if(LooksLikeAppsOpen(ex))DrawAppsOpen();else ShowStatus(ErrorText(ex),true);}finally{restoreBusy=false;window.IsEnabled=true;}
  }
 
  static bool SafeEffective(string manifest){try{return MigrationTransaction.HasEffectiveChanges(manifest);}catch{return false;}}

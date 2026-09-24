@@ -28,7 +28,7 @@ New-Item -ItemType Directory -Force "$PSScriptRoot\dist" | Out-Null
 Push-Location $PSScriptRoot
 try {
  $refs = @('/r:System.dll','/r:System.Core.dll','/r:System.Xml.dll','/r:System.Xml.Linq.dll','/r:System.Windows.Forms.dll',"/r:$framework\WPF\WindowsBase.dll","/r:$framework\WPF\PresentationCore.dll","/r:$framework\WPF\PresentationFramework.dll",'/r:System.Xaml.dll')
- & $compiler /nologo /target:winexe /win32manifest:src\app.manifest /win32icon:src\FlightBridge.ico /optimize+ /out:dist\FlightBridge.exe @refs /resource:src\FlightBridge.png,FlightBridge.png src\AssemblyInfo.cs src\Core.cs src\Library.cs src\AutoMigration.cs src\MigrationTransaction.cs src\MigrationContract.cs src\PreviewModel.cs src\LegacyMigrationAdapter.cs src\AppLocalization.cs src\AutomaticApp.cs src\App.cs
+ & $compiler /nologo /target:winexe /win32manifest:src\app.manifest /win32icon:src\FlightBridge.ico /optimize+ /out:dist\FlightBridge.exe @refs /resource:src\FlightBridge.png,FlightBridge.png src\AssemblyInfo.cs src\Core.cs src\Library.cs src\AutoMigration.cs src\MigrationTransaction.cs src\MigrationContract.cs src\PreviewModel.cs src\LegacyMigrationAdapter.cs src\UpdaterContract.cs src\StubUpdater.cs src\UpdateBannerLogic.cs src\AppLocalization.cs src\AutomaticApp.cs src\App.cs
  if ($LASTEXITCODE -ne 0) { throw 'App build failed' }
  & $compiler /nologo /target:exe /out:dist\CoreTests.exe /r:System.Core.dll /r:System.Xml.Linq.dll src\Core.cs src\Library.cs tests\CoreTests.cs
  if ($LASTEXITCODE -ne 0) { throw 'Test build failed' }
@@ -46,6 +46,10 @@ try {
  if ($LASTEXITCODE -ne 0) { throw 'Preview model test build failed' }
  & .\dist\PreviewModelTests.exe
  if ($LASTEXITCODE -ne 0) { throw 'Preview model tests failed' }
+& $compiler /nologo /target:exe /out:dist\UpdateBannerTests.exe /r:System.Core.dll src\UpdaterContract.cs src\StubUpdater.cs src\UpdateBannerLogic.cs src\AppLocalization.cs tests\UpdateBannerTests.cs
+ if ($LASTEXITCODE -ne 0) { throw 'Update banner test build failed' }
+ & .\dist\UpdateBannerTests.exe
+ if ($LASTEXITCODE -ne 0) { throw 'Update banner tests failed' }
  & $compiler /nologo /target:exe /out:dist\FlightBridge-Diagnostics.exe /r:System.Core.dll /r:System.Xml.Linq.dll src\Core.cs src\AutoMigration.cs scripts\Diagnostic.cs
  if ($LASTEXITCODE -ne 0) { throw 'Diagnostics build failed' }
  Sign-ReleaseFile '.\dist\FlightBridge.exe'
@@ -80,6 +84,6 @@ $zip = Join-Path $release 'FlightBridge-0.5.1-Portable.zip'
 Compress-Archive -Path (Join-Path $portable '*') -DestinationPath $zip -Force
 $releaseHashes = Get-FileHash -LiteralPath (Join-Path $release 'INSTALL Flight Bridge 0.5.1.exe'),(Join-Path $portable 'FlightBridge.exe'),$zip -Algorithm SHA256
 $releaseHashes | ForEach-Object { '{0}  {1}' -f $_.Hash,$_.Path.Substring($release.Length+1) } | Set-Content -LiteralPath (Join-Path $release 'SHA256.txt') -Encoding ASCII
-foreach($name in @('CoreTests.exe','AutoMigrationTests.exe','AppLocalizationTests.exe','PreviewModelTests.exe','DeviceCheckTests.exe','FlightBridge-Diagnostics.exe')){
+foreach($name in @('CoreTests.exe','AutoMigrationTests.exe','AppLocalizationTests.exe','PreviewModelTests.exe','UpdateBannerTests.exe','DeviceCheckTests.exe','FlightBridge-Diagnostics.exe')){
  $source=Join-Path $distRoot $name;if(Test-Path -LiteralPath $source){Move-Item -LiteralPath $source -Destination (Join-Path $developer $name) -Force}
 }
