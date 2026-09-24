@@ -1,0 +1,47 @@
+name: Build
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  no-hardcoded-paths:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: No baked-in paths, user names or machine names
+        run: bash scripts/check-no-hardcoded-paths.sh
+
+  build:
+    needs: no-hardcoded-paths
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build, test, and publish
+        run: ./build.ps1
+
+      - name: Upload portable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FlightBridge-portable
+          path: |
+            dist/Flight Bridge * - CURRENT/Portable (no installation)/**
+            dist/Flight Bridge * - CURRENT/FlightBridge-*-Portable.zip
+          if-no-files-found: error
+
+      - name: Upload release folder artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FlightBridge-release
+          path: dist/Flight Bridge * - CURRENT/**
+          if-no-files-found: error
