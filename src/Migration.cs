@@ -56,7 +56,11 @@ public static class Migration {
     var preview=new MigrationPreview{CanExport=false,CanWriteToGame=false,CandidateSteamAccounts=new List<SteamAccount>(dual)};
     preview.Issues.Add("Найдено несколько аккаунтов Steam с профилями обеих игр. Выберите нужный аккаунт и повторите. / Several Steam accounts have profiles for both games. Choose one account and try again.");
     preview.NextStep="Выберите аккаунт Steam в списке и нажмите проверку снова. / Choose a Steam account in the list and run the check again.";
-    foreach(var a in dual) preview.Notices.Add("Доступный аккаунт: "+MaskId(a.Id)+" (есть профили 2020 и 2024). / Available account: "+MaskId(a.Id)+" (has 2020 and 2024 profiles).");
+    var accountMap=new Dictionary<string,int>(StringComparer.OrdinalIgnoreCase);
+    foreach(var a in dual){
+     int n=AccountOrdinal(accountMap,a.Id);
+     preview.Notices.Add("Доступный аккаунт: аккаунт "+n+" (есть профили 2020 и 2024). / Available account: account "+n+" (has 2020 and 2024 profiles).");
+    }
     return preview;
    }
   }
@@ -283,61 +287,71 @@ public static class Migration {
   if(string.IsNullOrWhiteSpace(folder)) folder=DefaultReportFolder();
   Directory.CreateDirectory(folder);
   if(preview==null) preview=Diagnose();
+  // Per-report ordinal labels (never raw AccountID or a hash of it).
+  var accountMap=new Dictionary<string,int>(StringComparer.OrdinalIgnoreCase);
+  if(preview.UnderlyingPlan!=null){
+   foreach(var store in preview.UnderlyingPlan.Stores){
+    if(store.Edition=="Steam"&&!string.IsNullOrEmpty(store.Account)) AccountOrdinal(accountMap,store.Account);
+   }
+  }
+  if(preview.CandidateSteamAccounts!=null){
+   foreach(var a in preview.CandidateSteamAccounts) AccountOrdinal(accountMap,a.Id);
+  }
   var sb=new StringBuilder();
   sb.AppendLine("Flight Bridge diagnostic report (redacted)");
   // Where we looked / what we saw (roots masked).
   try{
    var probe=AutoMigration.Probe(DiscoverSteamRoot(),Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),null,AutoMigration.DefaultSteamFallbackRoots());
-   sb.AppendLine("Discovery steamRoot="+(probe.SteamRoot==null?"(none)":RedactPath(probe.SteamRoot))+"; fromRegistry="+probe.SteamFromRegistry+"; fromFallback="+probe.SteamFromFallback);
+   foreach(var s in probe.Stores){
+    if(s.Edition=="Steam"&&!string.IsNullOrEmpty(s.Account)) AccountOrdinal(accountMap,s.Account);
+   }
+   sb.AppendLine("Discovery steamRoot="+(probe.SteamRoot==null?"(none)":RedactPath(probe.SteamRoot,accountMap))+"; fromRegistry="+probe.SteamFromRegistry+"; fromFallback="+probe.SteamFromFallback);
    sb.AppendLine("Discovery steamRootsTried="+probe.SteamRootsTried.Count+"; libraries="+probe.SteamLibraries.Count+"; userdata="+probe.UserDataExists+"; steamAccounts="+probe.SteamAccountFolders);
    sb.AppendLine("Discovery packagesFolder="+probe.PackagesFolderExists+"; packageNames="+probe.PackageFolderNames.Count+"; stores="+probe.Stores.Count);
-   foreach(var note in probe.Notes) sb.AppendLine("DiscoveryNote="+Redact(note));
+   foreach(var note in probe.Notes) sb.AppendLine("DiscoveryNote="+Redact(note,accountMap));
    foreach(var name in probe.PackageFolderNames) sb.AppendLine("Package="+name);
-   foreach(var s in probe.Stores) sb.AppendLine("FoundStore year="+s.Year+"; edition="+(s.Edition=="Steam"?"Steam":"MicrosoftStore")+"; profiles="+s.Profiles.Count+"; account="+(string.IsNullOrEmpty(s.Account)?"":MaskId(s.Account)));
-  }catch(Exception ex){sb.AppendLine("DiscoveryError="+Redact(ex.Message));}
+   foreach(var s in probe.Stores) sb.AppendLine("FoundStore year="+s.Year+"; edition="+(s.Edition=="Steam"?"Steam":"MicrosoftStore")+"; profiles="+s.Profiles.Count+"; account="+(string.IsNullOrEmpty(s.Account)?"":AccountReportLabel(accountMap,s.Account)));
+  }catch(Exception ex){sb.AppendLine("DiscoveryError="+Redact(ex.Message,accountMap));}
 
   sb.AppendLine("GeneratedUtc="+DateTime.UtcNow.ToString("o"));
   sb.AppendLine("CanWriteToGame="+preview.CanWriteToGame+"; CanExport="+preview.CanExport);
-  sb.AppendLine("NextStep="+Redact(preview.NextStep));
-  if(!string.IsNullOrEmpty(preview.FallbackReason)) sb.AppendLine("FallbackReason="+Redact(preview.FallbackReason));
+  sb.AppendLine("NextStep="+Redact(preview.NextStep,accountMap));
+  if(!string.IsNullOrEmpty(preview.FallbackReason)) sb.AppendLine("FallbackReason="+Redact(preview.FallbackReason,accountMap));
   sb.AppendLine("Issues="+preview.Issues.Count+"; Notices="+preview.Notices.Count+"; Items="+preview.Items.Count);
   if(preview.UnderlyingPlan!=null){
-   int accountIndex=0;
-   var accountMap=new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
    foreach(var store in preview.UnderlyingPlan.Stores){
     string account=store.Account??"";
-    if(store.Edition=="Steam"&&account.Length>0&&!accountMap.ContainsKey(account)){
-     accountIndex++; accountMap[account]="<account#"+accountIndex+">";
-    }
-    string accountLabel=accountMap.ContainsKey(account)?accountMap[account]:(account.Length==0?"":MaskId(account));
+    string accountLabel=(store.Edition=="Steam"&&account.Length>0)?AccountReportLabel(accountMap,account):"";
     string edition=store.Edition=="Steam"?"Steam":"MicrosoftStore";
-    sb.AppendLine("Store year="+store.Year+"; edition="+edition+"; profiles="+store.Profiles.Count+"; unreadable="+store.Rejected+"; install="+(store.InstallPath!=null)+"; account="+accountLabel+"; root="+RedactPath(store.Root));
+    sb.AppendLine("Store year="+store.Year+"; edition="+edition+"; profiles="+store.Profiles.Count+"; unreadable="+store.Rejected+"; install="+(store.InstallPath!=null)+"; account="+accountLabel+"; root="+RedactPath(store.Root,accountMap));
    }
    sb.AppendLine(AutoMigration.RedactedReport(preview.UnderlyingPlan));
   }
   foreach(var item in preview.Items){
    sb.AppendLine("Item category="+item.Category+"; bindings="+item.Bindings+"; axes="+item.Axes+"; skipped="+item.Skipped.Count+"; warnings="+item.Warnings.Count);
-   foreach(var sk in item.Skipped) sb.AppendLine("  skip reason="+sk.Reason+"; message="+Redact(sk.Message));
+   foreach(var sk in item.Skipped) sb.AppendLine("  skip reason="+sk.Reason+"; message="+Redact(sk.Message,accountMap));
   }
   string path=Path.Combine(folder,"diagnostics-redacted.txt");
-  string reportText=Regex.Replace(sb.ToString(),@"userdata\\[0-9]+","userdata\\<account>",RegexOptions.IgnoreCase);
+  string reportText=Regex.Replace(sb.ToString(),@"userdata\\([0-9]+)",m=>"userdata\\"+AccountReportLabel(accountMap,m.Groups[1].Value),RegexOptions.IgnoreCase);
   File.WriteAllText(path,reportText,Encoding.UTF8);
   return path;
  }
 
- static string MaskId(string id){
-  if(string.IsNullOrEmpty(id)||id.Length<4) return "<id>";
-  using(var h=System.Security.Cryptography.SHA256.Create()){
-   byte[] hash=h.ComputeHash(Encoding.UTF8.GetBytes(id));
-   return "<steam:"+BitConverter.ToString(hash).Replace("-","").Substring(0,12).ToLowerInvariant()+">";
-  }
+ // Stable per-report/preview ordinal; never emit raw AccountID or a hash of it.
+ static int AccountOrdinal(Dictionary<string,int> map,string id){
+  if(string.IsNullOrEmpty(id)) return 0;
+  int n; if(map.TryGetValue(id,out n)) return n;
+  n=map.Count+1; map[id]=n; return n;
  }
- static string RedactPath(string path){
+ static string AccountReportLabel(Dictionary<string,int> map,string id){
+  return "<account "+AccountOrdinal(map,id)+">";
+ }
+ static string RedactPath(string path,Dictionary<string,int> accountMap){
   if(string.IsNullOrEmpty(path)) return "";
   string p=path.Replace('/','\\');
   // Always mask Steam userdata\<account> first (Windows %TEMP% is under LocalAppData).
   var um=Regex.Match(p,@"^(.*)\\userdata\\([^\\]+)(\\.*)$",RegexOptions.IgnoreCase);
-  if(um.Success) return "<SteamRoot>\\userdata\\"+MaskId(um.Groups[2].Value)+um.Groups[3].Value;
+  if(um.Success) return "<SteamRoot>\\userdata\\"+AccountReportLabel(accountMap,um.Groups[2].Value)+um.Groups[3].Value;
   string local=Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
   if(!string.IsNullOrEmpty(local)&&p.StartsWith(local,StringComparison.OrdinalIgnoreCase))
    return "%LOCALAPPDATA%"+p.Substring(local.Length);
@@ -346,14 +360,14 @@ public static class Migration {
   string pat="^[A-Za-z]:"+Regex.Escape(slash)+userSeg+Regex.Escape(slash)+"[^"+Regex.Escape(slash)+"]+";
   return Regex.Replace(p,pat,"<UserProfile>",RegexOptions.IgnoreCase);
  }
- static string Redact(string text){
+ static string Redact(string text,Dictionary<string,int> accountMap){
   if(string.IsNullOrEmpty(text)) return text;
   string t=text;
   string local=Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
   if(!string.IsNullOrEmpty(local)) t=Regex.Replace(t,Regex.Escape(local),"%LOCALAPPDATA%",RegexOptions.IgnoreCase);
   string userSeg2=new string(new char[]{'U','s','e','r','s'}); string bs2=new string((char)92,1);
     t=Regex.Replace(t,"[A-Za-z]:"+Regex.Escape(bs2)+userSeg2+Regex.Escape(bs2)+"[^"+Regex.Escape(bs2)+"]+","<UserProfile>",RegexOptions.IgnoreCase);
-  t=Regex.Replace(t,@"userdata\\[0-9]+","userdata\\<account>",RegexOptions.IgnoreCase);
+  t=Regex.Replace(t,@"userdata\\([0-9]+)",m=>"userdata\\"+AccountReportLabel(accountMap,m.Groups[1].Value),RegexOptions.IgnoreCase);
   return t;
  }
  static string SafeFileToken(string value){

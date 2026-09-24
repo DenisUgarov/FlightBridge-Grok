@@ -167,11 +167,14 @@ class MigrationTests {
    Check(Migration.ChooseSteamAccount(dual3,steam3,"0")==null,"without loginusers.vdf ActiveUser=0 stays ambiguous");
    var ask=Migration.Prepare(steam3,Path.Combine(root3,"local"),null);
    Check(!ask.CanWriteToGame&&ask.Issues.Count>0&&ask.NextStep!=null,"without loginusers Prepare asks to choose");
+   Check(ask.Notices.Any(n=>n.IndexOf("аккаунт 1",StringComparison.Ordinal)>=0)&&ask.Notices.Any(n=>n.IndexOf("account 1",StringComparison.Ordinal)>=0),"notices use ordinal account labels");
+   Check(ask.Notices.Any(n=>n.IndexOf("аккаунт 2",StringComparison.Ordinal)>=0)&&ask.Notices.Any(n=>n.IndexOf("account 2",StringComparison.Ordinal)>=0),"notices label second account distinctly");
+   Check(ask.Notices.All(n=>n.IndexOf("123",StringComparison.Ordinal)<0&&n.IndexOf("999",StringComparison.Ordinal)<0&&n.IndexOf("<steam:",StringComparison.OrdinalIgnoreCase)<0),"notices omit raw ids and hashes");
   }
 
 
 
-  // Paths under LocalAppData (Windows %TEMP%) must still mask userdata\<account>.
+    // Paths under LocalAppData (Windows %TEMP%) must still mask userdata\<account>.
   {
    string localBase=Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
    if(string.IsNullOrEmpty(localBase)) localBase=Path.GetTempPath();
@@ -181,10 +184,33 @@ class MigrationTests {
    string maskReport=Migration.CreateDiagnosticReport(Path.Combine(maskRoot,"diag"),maskPreview);
    string maskText=File.ReadAllText(maskReport);
    Check(!Regex.IsMatch(maskText,@"userdata\\123"),"report masks steam account even under LocalAppData/Temp");
+   Check(maskText.IndexOf("<account 1>",StringComparison.Ordinal)>=0,"report uses ordinal account label");
+   // Unsalted SHA-256 of AccountID "123" (full + old 12-char MaskId prefix) must not appear.
+   string sha123="a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3";
+   Check(maskText.IndexOf(sha123,StringComparison.OrdinalIgnoreCase)<0,"report has no SHA-256 of account id");
+   Check(maskText.IndexOf(sha123.Substring(0,12),StringComparison.OrdinalIgnoreCase)<0,"report has no SHA-256 prefix of account id");
+   Check(maskText.IndexOf("<steam:",StringComparison.OrdinalIgnoreCase)<0,"report has no steam: hash labels");
+   // Second dual account → distinct ordinals; neither raw id nor its hash.
+   string dirMask2=Path.Combine(maskSteam,"userdata","999","1250410","remote");Directory.CreateDirectory(dirMask2);
+   File.Copy("tests/fixtures/2020-fragment.xml",Path.Combine(dirMask2,"inputprofile_1"));
+   Directory.CreateDirectory(Path.Combine(maskSteam,"userdata","999","2537590","remote"));
+   File.Copy("tests/fixtures/2024-fragment.xml",Path.Combine(maskSteam,"userdata","999","2537590","remote","inputprofile_1"));
+   File.WriteAllText(Path.Combine(maskSteam,"userdata","999","1250410","remotecache.vdf"),"\"inputprofile_1\" { }");
+   File.WriteAllText(Path.Combine(maskSteam,"userdata","999","2537590","remotecache.vdf"),"\"inputprofile_1\" { }");
+   var planMulti=AutoMigration.Build(AutoMigration.Discover(maskSteam,Path.Combine(maskRoot,"local")));
+   var ids=planMulti.Stores.Where(s=>s.Edition=="Steam"&&!string.IsNullOrEmpty(s.Account)).Select(s=>s.Account).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+   Check(ids.Count>=2,"two steam accounts present for ordinal label test");
+   string multiReport=Migration.CreateDiagnosticReport(Path.Combine(maskRoot,"diag-multi"),Migration.FromPlan(planMulti));
+   string multiText=File.ReadAllText(multiReport);
+   Check(multiText.IndexOf("<account 1>",StringComparison.Ordinal)>=0&&multiText.IndexOf("<account 2>",StringComparison.Ordinal)>=0,"two accounts get distinct ordinal labels");
+   Check(!Regex.IsMatch(multiText,@"userdata\\(123|999)"),"multi report masks both raw account folders");
+   string sha999="83cf8b609de60036a8277bd0e96135751bbc07eb234256d4b65b893360651bf2";
+   Check(multiText.IndexOf(sha999,StringComparison.OrdinalIgnoreCase)<0&&multiText.IndexOf(sha999.Substring(0,12),StringComparison.OrdinalIgnoreCase)<0,"multi report has no SHA-256 of second account");
+   Check(multiText.IndexOf(sha123,StringComparison.OrdinalIgnoreCase)<0&&multiText.IndexOf(sha123.Substring(0,12),StringComparison.OrdinalIgnoreCase)<0,"multi report has no SHA-256 of first account");
    try{Directory.Delete(maskRoot,true);}catch{}
   }
 
-  // Optional folder defaults
+// Optional folder defaults
   var preview2=Migration.Prepare(steam,local,"123");
   if(preview2.CanExport){
    var exp=Migration.ExportForImport(preview2,null);

@@ -121,7 +121,7 @@ class DiscoveryTests {
    string diag=Migration.CreateDiagnosticReport(Path.Combine(root,"diag"),preview);
    string text=File.ReadAllText(diag);
    Check(text.IndexOf("Discovery",StringComparison.OrdinalIgnoreCase)>=0,"diagnostic mentions Discovery");
-   Check(text.IndexOf("userdata\\\\111",StringComparison.OrdinalIgnoreCase)<0,"diagnostic masks account ids");
+   Check(text.IndexOf("userdata\\111",StringComparison.OrdinalIgnoreCase)<0&&text.IndexOf("<steam:",StringComparison.OrdinalIgnoreCase)<0,"diagnostic masks account ids");
   }
   // Empty registry + fallback root succeeds
   {
