@@ -68,6 +68,22 @@ public static class PreviewModelTests {
   }
   if(AppLocalization.Resolve("ru")["Restore"].IndexOf("как было",StringComparison.OrdinalIgnoreCase)<0)
    throw new Exception("RU Restore should be Вернуть как было");
+
+  var en=AppLocalization.Resolve("en");
+  var ru=AppLocalization.Resolve("ru");
+  string general=PreviewModel.FormatWarning(en,"MyProfile","GeneralCategoryCheck");
+  if(general.IndexOf("MyProfile",StringComparison.Ordinal)<0)throw new Exception("general warn profile");
+  string reloc=PreviewModel.FormatWarning(en,"P","KEY_X — контекст OLD → NEW; проверьте");
+  if(reloc!=en["Reason_ContextMismatch"])throw new Exception("reloc="+reloc);
+  string human=PreviewModel.FormatWarning(en,"P","Please re-check the throttle after landing");
+  if(human!="Please re-check the throttle after landing")throw new Exception("human="+human);
+  string unknown=PreviewModel.FormatWarning(en,"P","WeirdEngineToken_XYZ");
+  if(unknown!=en["Reason_CheckAssignment"])throw new Exception("unknown en="+unknown);
+  if(en["Reason_CheckAssignment"].IndexOf("Check this assignment",StringComparison.Ordinal)<0)throw new Exception("en phrase");
+  if(ru["Reason_CheckAssignment"].IndexOf("Проверьте это назначение",StringComparison.Ordinal)<0)throw new Exception("ru phrase");
+  string unknownRu=PreviewModel.FormatWarning(ru,"P","WeirdEngineToken_XYZ");
+  if(unknownRu!=ru["Reason_CheckAssignment"])throw new Exception("unknown ru");
+
   Console.WriteLine("PreviewModel, Message, Confirm, localization audit passed.");
   return 0;
  }
