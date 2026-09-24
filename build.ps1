@@ -46,7 +46,7 @@ public static class BuildInfo {
 Push-Location $PSScriptRoot
 try {
  $refs = @('/r:System.dll','/r:System.Core.dll','/r:System.Xml.dll','/r:System.Xml.Linq.dll','/r:System.Windows.Forms.dll',"/r:$framework\WPF\WindowsBase.dll","/r:$framework\WPF\PresentationCore.dll","/r:$framework\WPF\PresentationFramework.dll",'/r:System.Xaml.dll')
- & $compiler /nologo /target:winexe /win32manifest:src\app.manifest /win32icon:src\FlightBridge.ico /optimize+ /out:dist\FlightBridge.exe @refs /resource:src\FlightBridge.png,FlightBridge.png src\AssemblyInfo.cs obj\VersionInfo.cs src\Core.cs src\Library.cs src\AutoMigration.cs src\MigrationTransaction.cs src\MigrationContract.cs src\Migration.cs src\PreviewModel.cs src\LegacyMigrationAdapter.cs src\AppLocalization.cs src\AutomaticApp.cs src\App.cs
+ & $compiler /nologo /target:winexe /win32manifest:src\app.manifest /win32icon:src\FlightBridge.ico /optimize+ /out:dist\FlightBridge.exe @refs /resource:src\FlightBridge.png,FlightBridge.png src\AssemblyInfo.cs obj\VersionInfo.cs src\Core.cs src\Library.cs src\AutoMigration.cs src\MigrationTransaction.cs src\MigrationContract.cs src\Migration.cs src\PreviewModel.cs src\DiagnosticsFlow.cs src\AppLocalization.cs src\AutomaticApp.cs src\App.cs
  if ($LASTEXITCODE -ne 0) { throw 'App build failed' }
  & $compiler /nologo /target:exe /out:dist\CoreTests.exe /r:System.Core.dll /r:System.Xml.Linq.dll obj\VersionInfo.cs src\Core.cs src\Library.cs src\MigrationContract.cs src\AutoMigration.cs tests\CoreTests.cs
  if ($LASTEXITCODE -ne 0) { throw 'Test build failed' }
@@ -74,6 +74,10 @@ try {
  if ($LASTEXITCODE -ne 0) { throw 'Preview model test build failed' }
  & .\dist\PreviewModelTests.exe
  if ($LASTEXITCODE -ne 0) { throw 'Preview model tests failed' }
+ & $compiler /nologo /target:exe /out:dist\DiagnosticsGuardTests.exe /r:System.Core.dll /r:System.Xml.Linq.dll obj\VersionInfo.cs src\Core.cs src\AutoMigration.cs src\MigrationContract.cs src\DiagnosticsFlow.cs src\AppLocalization.cs tests\DiagnosticsGuardTests.cs
+ if ($LASTEXITCODE -ne 0) { throw 'Diagnostics guard test build failed' }
+ & .\dist\DiagnosticsGuardTests.exe
+ if ($LASTEXITCODE -ne 0) { throw 'Diagnostics guard tests failed' }
  & $compiler /nologo /target:exe /out:dist\FlightBridge-Diagnostics.exe /r:System.Core.dll /r:System.Xml.Linq.dll obj\VersionInfo.cs src\Core.cs src\MigrationContract.cs src\AutoMigration.cs scripts\Diagnostic.cs
  if ($LASTEXITCODE -ne 0) { throw 'Diagnostics build failed' }
  Sign-ReleaseFile '.\dist\FlightBridge.exe'
@@ -124,7 +128,7 @@ $shaLines = foreach ($name in @('FlightBridge.exe','FlightBridge-portable.zip','
 }
 $shaLines | Set-Content -LiteralPath (Join-Path $flatRelease 'SHA256.txt') -Encoding ASCII
 Copy-Item -LiteralPath (Join-Path $flatRelease 'SHA256.txt') -Destination (Join-Path $release 'SHA256.txt') -Force
-foreach ($name in @('CoreTests.exe','AutoMigrationTests.exe','MigrationTests.exe','DiscoveryTests.exe','AppLocalizationTests.exe','PreviewModelTests.exe','DeviceCheckTests.exe','FlightBridge-Diagnostics.exe')) {
+foreach ($name in @('CoreTests.exe','AutoMigrationTests.exe','MigrationTests.exe','DiscoveryTests.exe','AppLocalizationTests.exe','PreviewModelTests.exe','DiagnosticsGuardTests.exe','DeviceCheckTests.exe','FlightBridge-Diagnostics.exe')) {
  $source = Join-Path $distRoot $name
  if (Test-Path -LiteralPath $source) { Move-Item -LiteralPath $source -Destination (Join-Path $developer $name) -Force }
 }

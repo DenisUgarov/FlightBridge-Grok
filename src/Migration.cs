@@ -381,13 +381,14 @@ public static class Migration {
 /// <summary>IMigrationService over the Migration facade. Vibe switches one line: new MigrationService(backupRoot).</summary>
 public sealed class MigrationService : IMigrationService {
  readonly string backupRoot;
+ string lastSteamAccount;
  public MigrationService(string backupRoot=null){this.backupRoot=string.IsNullOrWhiteSpace(backupRoot)?Migration.DefaultBackupFolder():backupRoot;}
- public MigrationPreview Prepare(string steamAccount){return Migration.Prepare(steamAccount);}
- public MigrationPreview Diagnose(){return Migration.Diagnose();}
+ public MigrationPreview Prepare(string steamAccount){lastSteamAccount=steamAccount;return Migration.Prepare(steamAccount);}
+ public MigrationPreview Diagnose(){return Migration.Diagnose(null,null,lastSteamAccount);}
  public List<SteamAccount> ListSteamAccounts(){return Migration.ListSteamAccounts();}
  public List<BackupInfo> ListBackups(){return Migration.ListBackups(backupRoot);}
  public void Restore(BackupInfo backup){if(backup==null)throw new ArgumentNullException("backup");Migration.Restore(backup.Manifest);}
- public string CreateDiagnosticReport(string folder){return Migration.CreateDiagnosticReport(folder);}
+ public string CreateDiagnosticReport(string folder){return Migration.CreateDiagnosticReport(folder,Migration.Diagnose(null,null,lastSteamAccount));}
  public ExportResult ExportForImport(MigrationPreview preview,string folder){return Migration.ExportForImport(preview,folder);}
  public string WriteToGame(MigrationPreview preview,WriteConfirmation confirmation){
   var result=Migration.WriteToGameResult(preview,confirmation,backupRoot);
