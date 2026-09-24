@@ -4,3 +4,4 @@ using System.Reflection;
 [assembly: AssemblyProduct("Flight Bridge")]
 [assembly: AssemblyCompany("Denis Ugarov")]
 [assembly: AssemblyCopyright("© 2026 Denis Ugarov")]
+
