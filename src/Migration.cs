@@ -7,54 +7,8 @@ using System.Collections.Generic;
 using System.Xml.Linq;
 
 namespace FSMigrator {
-// DTOs aligned with vibe/ui-preview-confirm IMigrationService (property names + Prepare/ListSteamAccounts/ExportForImport/WriteToGame).
-// Extra fields (NextStep, FallbackReason, Message, ListBackups, Restore, Diagnose, CreateDiagnosticReport) are additive for the product TZ.
-// SkippedBinding lives in Core.cs (shared machine Reason + human Message).
-
-public sealed class PreviewItem {
- public string SourceProfile {get;set;}
- public string TargetProfile {get;set;}
- public string Device {get;set;}
- public string Category {get;set;}
- public string Store2020 {get;set;}
- public string Store2024 {get;set;}
- public int Bindings {get;set;}
- public int Axes {get;set;}
- public List<SkippedBinding> Skipped {get;set;}
- public List<string> Warnings {get;set;}
- public PreviewItem(){Skipped=new List<SkippedBinding>();Warnings=new List<string>();}
-}
-
-public sealed class MigrationPreview {
- public List<PreviewItem> Items {get;set;}
- public List<string> Issues {get;set;}
- public List<string> Notices {get;set;}
- public bool CanExport {get;set;}
- public bool CanWriteToGame {get;set;}
- public string NextStep {get;set;}
- public string FallbackReason {get;set;}
- public List<SteamAccount> CandidateSteamAccounts {get;set;}
- public bool HasSteamStore {get;set;}
- public bool HasMicrosoftStore {get;set;}
- // Same role as UI contract UnderlyingPlan — exact snapshot for Write/Export.
- public AutomaticPlan UnderlyingPlan {get;set;}
- public AutomaticPlan Plan {get{return UnderlyingPlan;} set{UnderlyingPlan=value;}}
- public MigrationPreview(){Items=new List<PreviewItem>();Issues=new List<string>();Notices=new List<string>();CandidateSteamAccounts=new List<SteamAccount>();}
-}
-
-public sealed class SteamAccount {
- public string Id {get;set;}
- public string Name {get;set;}
- public bool HasMsfs2020 {get;set;}
- public bool HasMsfs2024 {get;set;}
- public override string ToString(){return (Name??Id??"?")+(HasMsfs2020&&HasMsfs2024?" · 2020+2024":HasMsfs2020?" · 2020":HasMsfs2024?" · 2024":"");}
-}
-
-public sealed class ExportResult {
- public string Folder {get;set;}
- public List<string> Files {get;set;}
- public ExportResult(){Files=new List<string>();}
-}
+// Facade over AutoMigration / MigrationTransaction. DTOs live in MigrationContract.cs (IMigrationService).
+// WriteResult is facade-only (Notices); not part of the UI contract.
 
 public sealed class WriteResult {
  public string BackupManifest {get;set;}
@@ -64,41 +18,6 @@ public sealed class WriteResult {
  public WriteResult(){Notices=new List<string>();}
 }
 
-public sealed class BackupInfo {
- public string Manifest {get;set;}
- public string Folder {get;set;}
- public string Label {get;set;}
- public string State {get;set;}
- public DateTime CreatedUtc {get;set;}
- public override string ToString(){return Label??Folder??Manifest??"?";}
-}
-
-/// <summary>
-/// Opaque confirmation after preview. UI uses FromUiDialog(summary). Tests may use Confirm(preview) to bind to one preview instance.
-/// </summary>
-public sealed class WriteConfirmation {
- /// <summary>UI contract name BoundPreview — same object Confirm(preview) was created from.</summary>
- public MigrationPreview BoundPreview {get;private set;}
- public string AcknowledgedSummary {get;private set;}
- WriteConfirmation(MigrationPreview preview,string summary){BoundPreview=preview;AcknowledgedSummary=summary;}
- /// <summary>UI dialog path (additive vs PR #2 contract, which only has Confirm).</summary>
- public static WriteConfirmation FromUiDialog(string acknowledgedSummary){
-  if(string.IsNullOrWhiteSpace(acknowledgedSummary)) throw new ArgumentException("Confirmation summary is required.","acknowledgedSummary");
-  return new WriteConfirmation(null,acknowledgedSummary.Trim());
- }
- /// <summary>Binds confirmation to this preview instance. Rejected by WriteToGame if a different preview is passed.</summary>
- public static WriteConfirmation Confirm(MigrationPreview preview){
-  if(preview==null) throw new ArgumentNullException("preview");
-  if(!preview.CanWriteToGame) throw new InvalidOperationException("Preview is not writable to the game.");
-  return new WriteConfirmation(preview,"ok:"+preview.Items.Count);
- }
- internal bool IsFor(MigrationPreview preview){
-  if(BoundPreview==null) return preview!=null; // FromUiDialog: any writable preview accepted
-  return object.ReferenceEquals(BoundPreview,preview);
- }
-}
-
-/// <summary>Static facade. MigrationService implements the UI IMigrationService shape without owning MigrationContract.cs.</summary>
 public static class Migration {
  public const string SteamCloudNotice="При следующем запуске Steam может показать конфликт облака: выберите загрузку локальных файлов (Upload local). / Next Steam launch may show a cloud conflict: choose Upload local.";
  public const string StoreCloudNotice="Поведение облака Xbox после правки не проверено; сначала запустите диагностику. / Xbox cloud behaviour after a write is unverified; run diagnosis first.";
@@ -445,22 +364,21 @@ public static class Migration {
  }
 }
 
-/// <summary>Drop-in for UI IMigrationService without shipping MigrationContract.cs on this branch.</summary>
-public sealed class MigrationService {
+/// <summary>IMigrationService over the Migration facade. Vibe switches one line: new MigrationService(backupRoot).</summary>
+public sealed class MigrationService : IMigrationService {
  readonly string backupRoot;
  public MigrationService(string backupRoot=null){this.backupRoot=string.IsNullOrWhiteSpace(backupRoot)?Migration.DefaultBackupFolder():backupRoot;}
  public MigrationPreview Prepare(string steamAccount){return Migration.Prepare(steamAccount);}
+ public MigrationPreview Diagnose(){return Migration.Diagnose();}
  public List<SteamAccount> ListSteamAccounts(){return Migration.ListSteamAccounts();}
+ public List<BackupInfo> ListBackups(){return Migration.ListBackups(backupRoot);}
+ public void Restore(BackupInfo backup){if(backup==null)throw new ArgumentNullException("backup");Migration.Restore(backup.Manifest);}
+ public string CreateDiagnosticReport(string folder){return Migration.CreateDiagnosticReport(folder);}
  public ExportResult ExportForImport(MigrationPreview preview,string folder){return Migration.ExportForImport(preview,folder);}
  public string WriteToGame(MigrationPreview preview,WriteConfirmation confirmation){
   var result=Migration.WriteToGameResult(preview,confirmation,backupRoot);
   if(!result.Success) throw new InvalidOperationException(result.Error??"Write failed.");
   return result.BackupManifest;
  }
- public List<BackupInfo> ListBackups(){return Migration.ListBackups(backupRoot);}
- public void Restore(string backupManifest){Migration.Restore(backupManifest);}
- public void Restore(BackupInfo backup){if(backup==null)throw new ArgumentNullException("backup");Migration.Restore(backup.Manifest);}
- public MigrationPreview Diagnose(){return Migration.Diagnose();}
- public string CreateDiagnosticReport(string folder){return Migration.CreateDiagnosticReport(folder);}
 }
 }

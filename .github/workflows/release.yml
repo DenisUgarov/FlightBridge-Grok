@@ -18,14 +18,39 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Derive version from tag
+        id: ver
+        run: |
+          $tag = '${{ github.ref_name }}'
+          if ($tag -notmatch '^v(\d+\.\d+\.\d+)$') {
+            throw "Tag must be vX.Y.Z (got: $tag)"
+          }
+          $ver = $Matches[1]
+          Write-Host "Version=$ver"
+          "version=$ver" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
       - name: Build, test, and publish
-        run: ./build.ps1
+        run: ./build.ps1 -Version '${{ steps.ver.outputs.version }}'
+
+      - name: Verify FileVersion
+        run: |
+          $ver = '${{ steps.ver.outputs.version }}'
+          $expected = "$ver.0"
+          $exe = Join-Path $PWD 'dist/release/FlightBridge.exe'
+          $info = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($exe)
+          if ($info.FileVersion -ne $expected) {
+            throw "FileVersion mismatch: got '$($info.FileVersion)', expected '$expected'"
+          }
+          Write-Host "FileVersion OK: $($info.FileVersion)"
 
       - name: Create draft GitHub release
         uses: softprops/action-gh-release@v2
         with:
+          name: Flight Bridge ${{ steps.ver.outputs.version }}
           draft: true
+          prerelease: false
           files: |
-            dist/Flight Bridge * - CURRENT/FlightBridge-*-Portable.zip
-            dist/Flight Bridge * - CURRENT/INSTALL Flight Bridge *.exe
-            dist/Flight Bridge * - CURRENT/SHA256.txt
+            dist/release/FlightBridge.exe
+            dist/release/FlightBridge-portable.zip
+            dist/release/FlightBridge-Setup.exe
+            dist/release/SHA256.txt

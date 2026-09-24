@@ -298,7 +298,7 @@ public static class AutoMigration {
    }
   }
  }
- public static string RedactedReport(AutomaticPlan a){return "Flight Bridge 0.5.1\r\n"+string.Join("\r\n",a.Stores.Select(s=>s.Year+"; "+s.Edition+"; profiles="+s.Profiles.Count+"; unreadable="+s.Rejected+"; install="+(s.InstallPath!=null)))+"\r\nPlans="+a.Changes.Count+"; skipped="+a.Notices.Count+"; blockers="+a.Issues.Count+"\r\nNo user names, paths, device GUIDs or profile names included.";}
+ public static string RedactedReport(AutomaticPlan a){return "Flight Bridge "+BuildInfo.Version+"\r\n"+string.Join("\r\n",a.Stores.Select(s=>s.Year+"; "+s.Edition+"; profiles="+s.Profiles.Count+"; unreadable="+s.Rejected+"; install="+(s.InstallPath!=null)))+"\r\nPlans="+a.Changes.Count+"; skipped="+a.Notices.Count+"; blockers="+a.Issues.Count+"\r\nNo user names, paths, device GUIDs or profile names included.";}
 }
 }
 
