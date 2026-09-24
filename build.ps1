@@ -6,7 +6,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 if (-not $Version -or [string]::IsNullOrWhiteSpace($Version)) {
- $Version = (Get-Content -LiteralPath (Join-Path $PSScriptRoot 'VERSION') -Raw).Trim()
+ $Version = ([System.IO.File]::ReadAllText((Join-Path $PSScriptRoot 'VERSION'))).Trim()
 }
 if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw "Expected -Version as X.Y.Z, got: $Version" }
 $fileVersion = "$Version.0"
@@ -33,15 +33,16 @@ $compiler = Join-Path $framework 'csc.exe'
 New-Item -ItemType Directory -Force (Join-Path $PSScriptRoot 'dist') | Out-Null
 New-Item -ItemType Directory -Force (Join-Path $PSScriptRoot 'obj') | Out-Null
 $versionInfo = Join-Path $PSScriptRoot 'obj\VersionInfo.cs'
-@(
- 'using System.Reflection;',
- '[assembly: AssemblyVersion("' + $fileVersion + '")]',
- '[assembly: AssemblyFileVersion("' + $fileVersion + '")]',
- '[assembly: AssemblyInformationalVersion("' + $Version + '")]',
- 'public static class BuildInfo {',
- ' public const string Version = "' + $Version + '";',
- '}'
-) | Set-Content -LiteralPath $versionInfo -Encoding ASCII
+$versionInfoText = @"
+using System.Reflection;
+[assembly: AssemblyVersion("$fileVersion")]
+[assembly: AssemblyFileVersion("$fileVersion")]
+[assembly: AssemblyInformationalVersion("$Version")]
+public static class BuildInfo {
+ public const string Version = "$Version";
+}
+"@
+[System.IO.File]::WriteAllText($versionInfo, $versionInfoText)
 Push-Location $PSScriptRoot
 try {
  $refs = @('/r:System.dll','/r:System.Core.dll','/r:System.Xml.dll','/r:System.Xml.Linq.dll','/r:System.Windows.Forms.dll',"/r:$framework\WPF\WindowsBase.dll","/r:$framework\WPF\PresentationCore.dll","/r:$framework\WPF\PresentationFramework.dll",'/r:System.Xaml.dll')
