@@ -227,7 +227,7 @@ public static class AutomaticApp {
    ?preview.CandidateSteamAccounts
    :migration.ListSteamAccounts().Where(a=>a.HasMsfs2020&&a.HasMsfs2024).ToList();
   // Display core-style ordinal labels (аккаунт 1 / Account 1) — never show raw Steam ids.
-  var labeled=new List<SteamAccount>();
+  var labeled=new System.Collections.Generic.List<SteamAccount>();
   for(int i=0;i<accounts.Count;i++){
    var src=accounts[i];
    labeled.Add(new SteamAccount{Id=src.Id,Name=(language.Code=="ru"?"Аккаунт ":"Account ")+(i+1),HasMsfs2020=src.HasMsfs2020,HasMsfs2024=src.HasMsfs2024});
