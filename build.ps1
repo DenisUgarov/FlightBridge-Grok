@@ -52,6 +52,7 @@ try {
  if ($LASTEXITCODE -ne 0) { throw 'Device test build failed' }
  & .\dist\DeviceCheckTests.exe
  if ($LASTEXITCODE -ne 0) { throw 'Device tests failed' }
+ & .\scripts\GenerateGuides.ps1
  & .\tests\InstallerTests.ps1
  Get-FileHash .\dist\FlightBridge.exe, .\dist\FlightBridge-Setup.exe -Algorithm SHA256 | Format-Table
 } finally { Pop-Location }
