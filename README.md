@@ -26,6 +26,18 @@
 
 ---
 
+## Что изменено относительно оригинала и почему
+
+- **Главный путь** — запись в уже зарегистрированные профили MSFS 2024 через фасад `Migration` / `MigrationTransaction` (полный бэкап в Documents/Flight Bridge/Backups, SHA-256, атомарная запись, проверка XML, автооткат). Экспорт файла (`ExportForImport`) — запасной сценарий при `CanWriteToGame=false` (поля `NextStep` / `FallbackReason`).
+- **Подтверждение** — только `WriteConfirmation.Confirm(preview)` с привязкой к этому превью (`BoundPreview`). Запись с подтверждением от другого превью отклоняется.
+- **Перед записью** — `AutoMigration.RequireClosed`: MSFS 2020 (`FlightSimulator`), MSFS 2024 (`FlightSimulator2024`) и Steam при Steam-хранилище.
+- **Обнаружение** — во время работы: реестр Steam, libraryfolders.vdf, все userdata, loginusers.vdf (MostRecent), Packages по префиксам, запасные Program Files Steam. Корни параметрами.
+- **Аккаунт Steam** — один dual → он; иначе ActiveUser (≠0), иначе MostRecent; затем выбор.
+- **Категория** из 2024; General и перенос KEY_* — Warnings. `SkippedBinding.Message` простым языком.
+- **`remotecache.vdf` не меняется**. Notices — Steam Cloud / Xbox.
+- **Диагностика** — только чтение, отчёт обезличен.
+- **UI** — `MigrationService` реализует `IMigrationService` из `MigrationContract.cs` (те же DTO).
+
 ## Исходная база (версия в файле `VERSION`)
 
 Flight Bridge автоматически переносит существующие настройки контроллеров из

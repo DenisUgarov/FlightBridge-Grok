@@ -12,6 +12,19 @@ public sealed class SkippedBinding {
  public string Reason {get;set;}
  /// <summary>Human text from core when available; UI prefers this over Reason mapping.</summary>
  public string Message {get;set;}
+ public SkippedBinding(){}
+ public SkippedBinding(string action,string context,string reason){Action=action;Context=context;Reason=reason;Message=HumanMessage(reason,action,context);}
+ public SkippedBinding(string action,string context,string reason,string message){Action=action;Context=context;Reason=reason;Message=message??HumanMessage(reason,action,context);}
+ public static string HumanMessage(string reason,string action,string context){
+  string a=string.IsNullOrEmpty(action)?"this control":action;
+  string c=string.IsNullOrEmpty(context)?"its section":context;
+  if(reason==SkipReason.NoTargetAction) return "No matching control found in the 2024 profile for "+a+" ("+c+"). / В профиле 2024 нет подходящей команды для "+a+" ("+c+").";
+  if(reason==SkipReason.ContextMismatch) return "The control "+a+" exists in 2024 but in a different section than "+c+", and it could not be moved safely. / Команда "+a+" есть в 2024, но в другом разделе, чем "+c+", и безопасно перенести её нельзя.";
+  if(reason==SkipReason.CategoryMismatch) return "This binding was skipped because the profile categories do not match. / Привязка пропущена: категории профилей не совпадают.";
+  if(reason==SkipReason.DeviceAmbiguous) return "Several devices matched; this binding was left unchanged. / Подходит несколько устройств; привязка не изменена.";
+  if(reason==SkipReason.NoTarget2024Profile) return "No matching 2024 profile was found for this 2020 profile. / Для этого профиля 2020 не найден подходящий профиль 2024.";
+  return "This binding was skipped. / Эта привязка пропущена.";
+ }
 }
 
 public sealed class PreviewItem {
@@ -59,9 +72,11 @@ public sealed class ExportResult {
 
 public sealed class BackupInfo {
  public string Manifest {get;set;}
+ public string Folder {get;set;}
  public string Label {get;set;}
  public string State {get;set;}
- public override string ToString(){return Label??"?";}
+ public DateTime CreatedUtc {get;set;}
+ public override string ToString(){return Label??Folder??Manifest??"?";}
 }
 
 /// <summary>Normal confirm after preview; bound to the shown MigrationPreview.</summary>
@@ -73,6 +88,7 @@ public sealed class WriteConfirmation {
   if(preview==null)throw new ArgumentNullException("preview");
   return new WriteConfirmation(preview,"ok:"+preview.Items.Count);
  }
+ internal bool IsFor(MigrationPreview preview){return preview!=null&&object.ReferenceEquals(BoundPreview,preview);}
 }
 
 public interface IMigrationService {
