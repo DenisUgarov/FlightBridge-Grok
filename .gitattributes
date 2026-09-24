@@ -6,3 +6,14 @@
 *.png binary
 *.ico binary
 
+
+# These files are stored in the repository with CRLF (fully or partly) since the original 0.5.1 import.
+# Keep them byte-for-byte as stored so edits touch only the changed lines, not the whole file.
+# A single coordinated renormalization can be done later when no branch is editing them.
+src/AutoMigration.cs -text diff
+src/MigrationTransaction.cs -text diff
+src/Core.cs -text diff
+src/Setup.cs -text diff
+src/AssemblyInfo.cs -text diff
+scripts/Diagnostic.cs -text diff
+tests/AutoMigrationTests.cs -text diff

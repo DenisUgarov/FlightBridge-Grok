@@ -88,7 +88,7 @@ public static class AutoMigration {
  }
  public static void RequireClosed(){RequireClosed(null);}
  public static void RequireClosed(IEnumerable<Installation> stores){bool steam=stores==null||stores.Any(s=>s.Edition=="Steam");foreach(var p in Process.GetProcesses()){using(p){string n;try{n=p.ProcessName;}catch{continue;}if(n.StartsWith("FlightSimulator",StringComparison.OrdinalIgnoreCase)||(steam&&(n.Equals("steam",StringComparison.OrdinalIgnoreCase)||n.Equals("steamwebhelper",StringComparison.OrdinalIgnoreCase))))throw new IOException(steam?"Полностью закройте Steam и оба симулятора, затем повторите действие.":"Полностью закройте оба симулятора, затем повторите действие.");}}}
- public static string RedactedReport(AutomaticPlan a){return "Flight Bridge 0.5.1\r\n"+string.Join("\r\n",a.Stores.Select(s=>s.Year+"; "+s.Edition+"; profiles="+s.Profiles.Count+"; unreadable="+s.Rejected+"; install="+(s.InstallPath!=null)))+"\r\nPlans="+a.Changes.Count+"; skipped="+a.Notices.Count+"; blockers="+a.Issues.Count+"\r\nNo user names, paths, device GUIDs or profile names included.";}
+ public static string RedactedReport(AutomaticPlan a){return "Flight Bridge "+BuildInfo.Version+"\r\n"+string.Join("\r\n",a.Stores.Select(s=>s.Year+"; "+s.Edition+"; profiles="+s.Profiles.Count+"; unreadable="+s.Rejected+"; install="+(s.InstallPath!=null)))+"\r\nPlans="+a.Changes.Count+"; skipped="+a.Notices.Count+"; blockers="+a.Issues.Count+"\r\nNo user names, paths, device GUIDs or profile names included.";}
 }
 }
 

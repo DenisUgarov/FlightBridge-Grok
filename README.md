@@ -26,7 +26,7 @@
 
 ---
 
-## Исходная база (код 0.5.1)
+## Исходная база (версия в файле `VERSION`)
 
 Flight Bridge автоматически переносит существующие настройки контроллеров из
 Microsoft Flight Simulator 2020 в зарегистрированные профили Microsoft Flight
@@ -42,10 +42,14 @@ Simulator 2024.
 
 ```powershell
 .\build.ps1
+# или явно:
+.\build.ps1 -Version 0.5.1
 ```
 
-Сценарий компилирует приложение и установщик штатным C#-компилятором .NET
-Framework, запускает все тесты и создаёт папку текущего выпуска в `dist`.
+Сценарий читает версию из параметра `-Version` или из файла `VERSION`,
+компилирует приложение и установщик штатным C#-компилятором .NET Framework,
+запускает все тесты и публикует артефакты в `dist/release/` (стабильные имена)
+и в человекочитаемую папку `dist/Flight Bridge <ver> - CURRENT/`.
 
 ## Как пользоваться
 
@@ -146,16 +150,19 @@ Framework, запускает все тесты и создаёт папку т�
 ## Сборка через GitHub Actions
 
 На каждый pull request и на push в `main` Actions собирает проект на
-`windows-latest` (сценарий `./build.ps1`) и выкладывает артефакты:
+`windows-latest` (сценарий `./build.ps1`, версия из файла `VERSION`) и
+выкладывает артефакты из `dist/release/` со **стабильными именами**:
 
-- **FlightBridge-portable** — портативный `FlightBridge.exe` с README (и zip);
-- **FlightBridge-release** — вся папка выпуска (`INSTALL …exe`, portable, zip, `SHA256.txt`).
+- **FlightBridge-portable** — `FlightBridge.exe` и `FlightBridge-portable.zip`;
+- **FlightBridge-release** — `FlightBridge.exe`, `FlightBridge-portable.zip`,
+  `FlightBridge-Setup.exe`, `SHA256.txt`.
 
 Скачать: вкладка **Actions** → нужный прогон → раздел **Artifacts** внизу справа.
-Черновик GitHub Release (по тегу `v*`) собирается отдельным workflow и по
-умолчанию остаётся draft.
+Черновик GitHub Release (по тегу `vX.Y.Z`) собирается workflow `release.yml`:
+версия берётся из тега, вложения — те же четыре файла, release остаётся draft.
 
-Подробное описание логики переноса (как в оригинальном коде): [docs/LOGIC.md](docs/LOGIC.md).
+Контракт имён и версий для Updater: [docs/RELEASES.md](docs/RELEASES.md).
+Подробное описание логики переноса: [docs/LOGIC.md](docs/LOGIC.md).
 Продуктовые требования (принцип «Запустил и работает»): [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md).
 Лицензия: [LICENSE](LICENSE) (MIT).
 
