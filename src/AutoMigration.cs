@@ -58,7 +58,18 @@ public static class AutoMigration {
  static long Product(Profile p){string s=(string)p.Device.Attribute("ProductID")??"";long n;return s.StartsWith("0x",StringComparison.OrdinalIgnoreCase)?(long.TryParse(s.Substring(2),System.Globalization.NumberStyles.HexNumber,null,out n)?n:-1):(long.TryParse(s,out n)?n:-1);}
  public static List<Profile> CompatibleSources(Installation source,Profile target){
   var compatible=new List<Profile>();
-  foreach(var candidate in source.Profiles.Where(s=>Product(s)>=0&&Product(s)==Product(target)&&Norm((string)s.Device.Attribute("DeviceName"))==Norm((string)target.Device.Attribute("DeviceName")))){
+  // Primary device identity: ProductID + normalized DeviceName (unchanged).
+  var deviceMatches=source.Profiles.Where(s=>Product(s)>=0&&Product(s)==Product(target)&&Norm((string)s.Device.Attribute("DeviceName"))==Norm((string)target.Device.Attribute("DeviceName"))).ToList();
+  // GUID is only a tie-breaker when several ProductID+DeviceName candidates remain.
+  // Do NOT warn when a single candidate has a different GUID (2020/2024 fixtures differ).
+  if(deviceMatches.Count>1){
+   string guid=((string)target.Device.Attribute("GUID")??"").Trim();
+   if(guid.Length>0){
+    var byGuid=deviceMatches.Where(s=>string.Equals(((string)s.Device.Attribute("GUID")??"").Trim(),guid,StringComparison.OrdinalIgnoreCase)).ToList();
+    if(byGuid.Count==1) deviceMatches=byGuid;
+   }
+  }
+  foreach(var candidate in deviceMatches){
    try{var preview=Engine.Analyze(candidate,target,true);if(preview.Copied>0||preview.Axes>0)compatible.Add(candidate);}catch(InvalidDataException){}
   }
   return compatible;

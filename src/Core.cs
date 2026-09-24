@@ -10,9 +10,36 @@ using System.Text.RegularExpressions;
 using System.Threading;
 
 namespace FSMigrator {
+public static class SkipReason {
+ public const string NoTargetAction="NoTargetAction";
+ public const string ContextMismatch="ContextMismatch";
+ public const string CategoryMismatch="CategoryMismatch";
+ public const string DeviceAmbiguous="DeviceAmbiguous";
+ public const string NoTarget2024Profile="NoTarget2024Profile";
+}
+public sealed class SkippedBinding {
+ public string Action, Context, Reason, Message;
+ public SkippedBinding(){}
+ public SkippedBinding(string action,string context,string reason){Action=action;Context=context;Reason=reason;Message=HumanMessage(reason,action,context);}
+ public SkippedBinding(string action,string context,string reason,string message){Action=action;Context=context;Reason=reason;Message=message??HumanMessage(reason,action,context);}
+ // Machine Reason stays stable for tests/UI logic; Message is plain language (no paths / GUID / ProductID / WGS / XML).
+ public static string HumanMessage(string reason,string action,string context){
+  string a=string.IsNullOrEmpty(action)?"this control":action;
+  string c=string.IsNullOrEmpty(context)?"its section":context;
+  if(reason==SkipReason.NoTargetAction) return "No matching control found in the 2024 profile for "+a+" ("+c+"). / В профиле 2024 нет подходящей команды для "+a+" ("+c+").";
+  if(reason==SkipReason.ContextMismatch) return "The control "+a+" exists in 2024 but in a different section than "+c+", and it could not be moved safely. / Команда "+a+" есть в 2024, но в другом разделе, чем "+c+", и безопасно перенести её нельзя.";
+  if(reason==SkipReason.CategoryMismatch) return "This binding was skipped because the profile categories do not match. / Привязка пропущена: категории профилей не совпадают.";
+  if(reason==SkipReason.DeviceAmbiguous) return "Several devices matched; this binding was left unchanged. / Подходит несколько устройств; привязка не изменена.";
+  if(reason==SkipReason.NoTarget2024Profile) return "No matching 2024 profile was found for this 2020 profile. / Для этого профиля 2020 не найден подходящий профиль 2024.";
+  return "This binding was skipped. / Эта привязка пропущена.";
+ }
+}
 public sealed class Profile {
  public string Path; public XDocument Xml; public bool IsFragment; public byte[] OriginalBytes;
  public string Category { get { var a=Device.Element("AircraftInfo"); return a==null?"Общее управление":((string)a.Attribute("CategoryName") ?? "Конкретный самолёт"); } }
+ // Export/preview code from the 2024 target only. 2020 profiles usually lack AircraftInfo;
+ // we never match pairs by category. Missing CategoryName => General (import may be rejected by the sim).
+ public string CategoryCode { get { var a=Device.Element("AircraftInfo"); string n=a==null?null:((string)a.Attribute("CategoryName")); return string.IsNullOrWhiteSpace(n)?"General":n.Trim(); } }
  public XElement Device { get { return Xml.Root.Element("Device"); } }
  public string Name { get { return (string)Xml.Root.Element("FriendlyName") ?? (string)Device.Attribute("DeviceName") ?? System.IO.Path.GetFileName(Path); } }
  public override string ToString() { return Name + "  ·  " + Device.Descendants("Action").Count(a=>a.Elements().Any()).ToString() + " назначений"; }
@@ -39,7 +66,7 @@ public sealed class Profile {
  }
 }
 public sealed class Plan {
- public Profile Source,Target; public XDocument Output; public int Copied, Axes, Relocated; public List<string> Skipped=new List<string>(); public List<string> Warnings=new List<string>(); public string OutputName;
+ public Profile Source,Target; public XDocument Output; public int Copied, Axes, Relocated; public List<string> Skipped=new List<string>(); public List<string> Warnings=new List<string>(); public List<SkippedBinding> SkippedBindings=new List<SkippedBinding>(); public string OutputName;
  public string Report { get { return Source.Name+" → "+Target.Category+"\r\nНовое имя: "+OutputName+"\r\nБудет перенесено: " + Copied + " назначений. Настройки осей: " + Axes + ".\r\nВ другом контексте: "+Relocated+". Требуют ручной настройки: " + Skipped.Count + ".\r\n\r\n" + string.Join("\r\n",Warnings.Concat(Skipped)); } }
 }
 public static class Engine {
@@ -60,8 +87,16 @@ public static class Engine {
    var matches=dest.Descendants("Action").Where(x=>Attr(x,"ActionName")==name && Attr(x.Parent,"ContextName")==ctx).ToList();
    bool relocated=false;
    if(matches.Count==0 && allowRelocated && name.StartsWith("KEY_",StringComparison.Ordinal)) {matches=dest.Descendants("Action").Where(x=>Attr(x,"ActionName")==name).ToList();relocated=matches.Count==1;}
-   if(matches.Count!=1 || used.Contains(matches[0]) || string.IsNullOrEmpty(name)) {p.Skipped.Add(ctx+" / "+name+" — нет однозначного совпадения команды");continue;}
-   int flag; if(!int.TryParse(Attr(a,"Flag"),out flag) || flag<0 || flag>65535 || !a.Descendants("KEY").Any()) {p.Skipped.Add(ctx+" / "+name+" — неизвестный формат привязки");continue;}
+   if(matches.Count!=1 || used.Contains(matches[0]) || string.IsNullOrEmpty(name)) {
+    // Same outcomes as before (binding not copied). Classify for the preview contract:
+    // ContextMismatch when the action exists in 2024 but not in this context / not uniquely relocatable;
+    // NoTargetAction when the action is absent or the match is otherwise unusable.
+    bool existsElsewhere=dest.Descendants("Action").Any(x=>Attr(x,"ActionName")==name);
+    string reason=existsElsewhere?SkipReason.ContextMismatch:SkipReason.NoTargetAction;
+    p.SkippedBindings.Add(new SkippedBinding(name,ctx,reason));
+    p.Skipped.Add(ctx+" / "+name+" — нет однозначного совпадения команды");continue;
+   }
+   int flag; if(!int.TryParse(Attr(a,"Flag"),out flag) || flag<0 || flag>65535 || !a.Descendants("KEY").Any()) {p.SkippedBindings.Add(new SkippedBinding(name,ctx,SkipReason.NoTargetAction));p.Skipped.Add(ctx+" / "+name+" — неизвестный формат привязки");continue;}
    var t=matches[0]; used.Add(t);
    t.Elements("Primary").Remove();t.Elements("Secondary").Remove();t.Elements("Axis").Remove();
    foreach(var b in a.Elements().Where(x=>x.Name=="Primary" || x.Name=="Secondary" || x.Name=="Axis")) t.Add(new XElement(b));

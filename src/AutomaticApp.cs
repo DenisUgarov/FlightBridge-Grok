@@ -98,7 +98,7 @@ public static class AutomaticApp {
    if(legacyRepair!=null){var current=AutoMigration.Discover();var document=MigrationTransaction.Verify(legacyRepair);var roots=current.Select(s=>Path.GetFullPath(s.Root)).ToList();if(document.Root.Elements("Store").Any(s=>!roots.Contains((string)s.Attribute("Root"),StringComparer.OrdinalIgnoreCase)))throw new IOException(L("WrongInstall"));await Task.Run(()=>MigrationTransaction.Restore(legacyRepair,()=>AutoMigration.RequireClosed(current)));}
    var fresh=AutoMigration.Build(AutoMigration.Discover());if(!fresh.Ready)throw new IOException(L("StateChanged"));
    if(legacyRepair==null&&(fresh.Changes.Count!=plan.Changes.Count||fresh.Changes.Any(p=>!plan.Changes.Any(old=>old.Source.Path==p.Source.Path&&old.Target.Path==p.Target.Path&&Engine.Unchanged(old.Source)&&Engine.Unchanged(old.Target)))))throw new IOException(L("StateChanged"));
-   string result=await Task.Run(()=>MigrationTransaction.Execute(fresh,backupRoot,()=>AutoMigration.RequireClosed(fresh.Stores),null));transfer.IsEnabled=false;ShowStatus(L("TransferDone"));
+   var preview=Migration.FromPlan(fresh);string result=await Task.Run(()=>{var wr=Migration.WriteToGameResult(preview,WriteConfirmation.Confirm(preview),backupRoot);if(!wr.Success)throw new InvalidOperationException(wr.Error??L("OperationFailed"));return wr.BackupManifest;});transfer.IsEnabled=false;ShowStatus(L("TransferDone"));
    MessageBox.Show(window,F("TransferMessage",Path.GetDirectoryName(result)),L("TransferTitle"),MessageBoxButton.OK,MessageBoxImage.Information);
   }catch(Exception ex){ShowStatus(ErrorText(ex),true);}finally{window.IsEnabled=true;}
  }
@@ -107,7 +107,7 @@ public static class AutomaticApp {
   window.IsEnabled=false;try{
    string[] sessions=SafeSessions();string selected=sessions.FirstOrDefault(m=>SafeState(m)=="Pending"||SafeState(m)=="Restoring")??sessions.FirstOrDefault(m=>SafeState(m)=="Completed"&&SafeEffective(m));if(selected==null)throw new IOException(L("NoBackup"));
    var document=MigrationTransaction.Verify(selected);var current=AutoMigration.Discover();var roots=current.Select(s=>Path.GetFullPath(s.Root)).ToList();if(document.Root.Elements("Store").Any(s=>!roots.Contains((string)s.Attribute("Root"),StringComparer.OrdinalIgnoreCase)))throw new IOException(L("WrongInstall"));
-   await Task.Run(()=>MigrationTransaction.Restore(selected,()=>AutoMigration.RequireClosed(current)));ShowStatus(L("Restored"));MessageBox.Show(window,L("Restored"),L("RestoreTitle"),MessageBoxButton.OK,MessageBoxImage.Information);
+   await Task.Run(()=>Migration.Restore(selected));ShowStatus(L("Restored"));MessageBox.Show(window,L("Restored"),L("RestoreTitle"),MessageBoxButton.OK,MessageBoxImage.Information);
   }catch(Exception ex){ShowStatus(ErrorText(ex),true);}finally{window.IsEnabled=true;}
  }
 
