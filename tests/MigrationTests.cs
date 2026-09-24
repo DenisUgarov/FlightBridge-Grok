@@ -210,6 +210,42 @@ class MigrationTests {
    try{Directory.Delete(maskRoot,true);}catch{}
   }
 
+  // Saved diagnostic report uses the Steam account chosen on screen (not a different dual account).
+  {
+   string selRoot=Path.Combine(Path.GetTempPath(),"FlightBridge-selacct-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(selRoot);
+   string selSteam=Path.Combine(selRoot,"steam"),selLib=Path.Combine(selRoot,"library"),selLocal=Path.Combine(selRoot,"local");
+   Directory.CreateDirectory(Path.Combine(selSteam,"steamapps"));
+   File.WriteAllText(Path.Combine(selSteam,"steamapps","libraryfolders.vdf"),"\"libraryfolders\" { \"0\" { \"path\" \""+selLib.Replace("\\","\\\\")+"\" } }");
+   Directory.CreateDirectory(Path.Combine(selLib,"steamapps"));
+   foreach(string id in new[]{"1250410","2537590"}){
+    Directory.CreateDirectory(Path.Combine(selLib,"steamapps","common",id));
+    File.WriteAllText(Path.Combine(selLib,"steamapps","appmanifest_"+id+".acf"),"\"installdir\" \""+id+"\"");
+   }
+   // Account 111: one profile each year. Account 222: two 2020 profiles + one 2024 (distinguishable in the report).
+   Action<string,string,string,int> put=delegate(string acct,string app,string fixture,int n){
+    string remote=Path.Combine(selSteam,"userdata",acct,app,"remote");Directory.CreateDirectory(remote);
+    var sbCache=new System.Text.StringBuilder();
+    for(int i=1;i<=n;i++){File.Copy(fixture,Path.Combine(remote,"inputprofile_"+i),true);sbCache.Append("\"inputprofile_"+i+"\" { }");}
+    File.WriteAllText(Path.Combine(selSteam,"userdata",acct,app,"remotecache.vdf"),sbCache.ToString());
+   };
+   put("111","1250410","tests/fixtures/2020-fragment.xml",1);
+   put("111","2537590","tests/fixtures/2024-fragment.xml",1);
+   put("222","1250410","tests/fixtures/2020-fragment.xml",2);
+   put("222","2537590","tests/fixtures/2024-fragment.xml",1);
+   var dual=Migration.ListSteamAccounts(selSteam,selLocal).Where(a=>a.HasMsfs2020&&a.HasMsfs2024).ToList();
+   Check(dual.Count==2,"two dual Steam accounts for selected-account report test");
+   // Facade path mirrors MigrationService.CreateDiagnosticReport after Prepare(chosen): Diagnose(root,lad,chosen) then CreateDiagnosticReport(folder, preview).
+   string report222=Migration.CreateDiagnosticReport(Path.Combine(selRoot,"diag-222"),Migration.Diagnose(selSteam,selLocal,"222"));
+   string text222=File.ReadAllText(report222);
+   Check(Regex.IsMatch(text222,@"Store year=2020; edition=Steam; profiles=2;"),"report for second account shows its 2020 profile count");
+   string report111=Migration.CreateDiagnosticReport(Path.Combine(selRoot,"diag-111"),Migration.Diagnose(selSteam,selLocal,"111"));
+   string text111=File.ReadAllText(report111);
+   Check(Regex.IsMatch(text111,@"Store year=2020; edition=Steam; profiles=1;"),"report for first account shows its 2020 profile count");
+   Check(text222.IndexOf("111",StringComparison.Ordinal)<0&&text222.IndexOf("222",StringComparison.Ordinal)<0,"second-account report omits raw account ids");
+   Check(text111.IndexOf("111",StringComparison.Ordinal)<0&&text111.IndexOf("222",StringComparison.Ordinal)<0,"first-account report omits raw account ids");
+   try{Directory.Delete(selRoot,true);}catch{}
+  }
+
 // Optional folder defaults
   var preview2=Migration.Prepare(steam,local,"123");
   if(preview2.CanExport){

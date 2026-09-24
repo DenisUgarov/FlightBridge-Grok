@@ -388,7 +388,7 @@ public sealed class MigrationService : IMigrationService {
  public List<SteamAccount> ListSteamAccounts(){return Migration.ListSteamAccounts();}
  public List<BackupInfo> ListBackups(){return Migration.ListBackups(backupRoot);}
  public void Restore(BackupInfo backup){if(backup==null)throw new ArgumentNullException("backup");Migration.Restore(backup.Manifest);}
- public string CreateDiagnosticReport(string folder){return Migration.CreateDiagnosticReport(folder);}
+ public string CreateDiagnosticReport(string folder){return Migration.CreateDiagnosticReport(folder,Migration.Diagnose(null,null,lastSteamAccount));}
  public ExportResult ExportForImport(MigrationPreview preview,string folder){return Migration.ExportForImport(preview,folder);}
  public string WriteToGame(MigrationPreview preview,WriteConfirmation confirmation){
   var result=Migration.WriteToGameResult(preview,confirmation,backupRoot);
