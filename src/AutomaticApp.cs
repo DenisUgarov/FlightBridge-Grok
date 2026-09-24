@@ -61,7 +61,7 @@ public static class AutomaticApp {
  }
  static Border Card(UIElement child){return new Border{Child=child,Background=Gradient(252,253,254,228,232,237),BorderBrush=new SolidColorBrush(Color.FromRgb(174,181,190)),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(12),Padding=new Thickness(20),Margin=new Thickness(0,9,0,9),Effect=new DropShadowEffect{BlurRadius=14,ShadowDepth=2,Opacity=0.16,Color=Colors.Black}};}
  static void ShowStatus(string message,bool error=false){if(status==null)return;status.Text=message;status.Foreground=new SolidColorBrush(error?Color.FromRgb(166,54,54):Color.FromRgb(64,91,74));}
- static IMigrationService CreateMigration(){return new LegacyMigrationAdapter(backupRoot);}
+ static IMigrationService CreateMigration(){return new MigrationService(backupRoot);}
  static TextBlock Link(string label,Action action){
   var block=new TextBlock{Margin=new Thickness(0,4,16,4),Cursor=System.Windows.Input.Cursors.Hand,FontSize=11,Opacity=0.75};
   var run=new Run(label){Foreground=new SolidColorBrush(Color.FromRgb(80,100,130)),TextDecorations=TextDecorations.Underline};
@@ -90,7 +90,7 @@ public static class AutomaticApp {
   window.IsEnabled=false;transferDone=false;content.Children.Clear();content.Children.Add(Text("Flight Bridge",30));content.Children.Add(Text(L("Scanning"),18,new SolidColorBrush(Color.FromRgb(105,120,139))));
   try{
    migration=CreateMigration();
-   preview=await Task.Run(()=>diagnosticsOnly?migration.Diagnose():migration.Prepare(selectedSteamAccount));
+   preview=await Task.Run(()=>diagnosticsOnly?DiagnosticsFlow.RunDiagnose(migration):migration.Prepare(selectedSteamAccount));
    legacyRepair=diagnosticsOnly?null:SafeLegacy();
    Draw();
   }catch(Exception ex){if(LooksLikeAppsOpen(ex))DrawAppsOpen();else DrawFailure(L("OperationFailed"),ErrorText(ex));}
@@ -121,7 +121,7 @@ public static class AutomaticApp {
   if(diagnosticsOnly){
    if(preview!=null&&preview.Items.Count>0)DrawPreviewTable();
    status=Text(L("DiagnosticsBanner"),14);content.Children.Add(status);
-   var diagActions=new WrapPanel();diagActions.Children.Add(Button(L("SaveReport"),SaveDiagnostic,true));diagActions.Children.Add(Button(L("Rescan"),Scan));content.Children.Add(diagActions);
+   var diagActions=new WrapPanel();diagActions.Children.Add(Button(L("DiagnosticsSaveReport"),SaveDiagnostic,true));diagActions.Children.Add(Button(L("Rescan"),Scan));content.Children.Add(diagActions);
    DrawQuietLinks();return;
   }
 
@@ -217,14 +217,7 @@ public static class AutomaticApp {
  }
 
  static string FormatWarning(PreviewItem item,string warning){
-  if(string.Equals(warning,"GeneralCategoryCheck",StringComparison.OrdinalIgnoreCase))return F("GeneralWarn",item.TargetProfile);
-  if(string.IsNullOrWhiteSpace(warning))return null;
-  // Relocated KEY_* lines from Engine → plain phrase, never show codes.
-  int arrow=warning.IndexOf("→",StringComparison.Ordinal);
-  if(arrow<0)arrow=warning.IndexOf("->",StringComparison.Ordinal);
-  if(arrow>=0)return L("Reason_ContextMismatch");
-  if(warning.IndexOf("KEY_",StringComparison.OrdinalIgnoreCase)>=0)return L("Reason_ContextMismatch");
-  return L("Reason_ContextMismatch");
+  return PreviewModel.FormatWarning(language,item!=null?item.TargetProfile:null,warning);
  }
 
  static void DrawSteamSelector(){
@@ -296,7 +289,7 @@ public static class AutomaticApp {
  static void DrawFailure(string heading,string message){content.Children.Clear();content.Children.Add(Text("Flight Bridge",30));content.Children.Add(Text(heading,22));status=Text(message,15,new SolidColorBrush(Color.FromRgb(166,54,54)));content.Children.Add(status);content.Children.Add(Button(L("Rescan"),Scan,true));content.Children.Add(Button(L("SaveReport"),SaveDiagnostic));}
  static void ChangeLanguage(AppLanguage selected){if(selected==null||selected.Code==language.Code)return;language=selected;Directory.CreateDirectory(Path.GetDirectoryName(LanguagePreference));File.WriteAllText(LanguagePreference,language.Code);Draw();}
  static void ChooseBackupRoot(){using(var dialog=new System.Windows.Forms.FolderBrowserDialog{Description=L("BackupDescription"),SelectedPath=backupRoot})if(dialog.ShowDialog()==System.Windows.Forms.DialogResult.OK){backupRoot=dialog.SelectedPath;Directory.CreateDirectory(Path.GetDirectoryName(Preferences));File.WriteAllText(Preferences,backupRoot);migration=CreateMigration();ShowStatus(L("BackupChanged"));}}
- static void SaveDiagnostic(){try{string path=migration.CreateDiagnosticReport(null);ShowStatus(L("DiagnosticSaved"));}catch(Exception ex){ShowStatus(ErrorText(ex),true);}}
+ static void SaveDiagnostic(){try{string path=diagnosticsOnly?DiagnosticsFlow.SaveReport(migration):migration.CreateDiagnosticReport(null);if(string.IsNullOrWhiteSpace(path)||!File.Exists(path))throw new IOException(L("OperationFailed"));ShowStatus(L("DiagnosticSaved"));try{Process.Start(new ProcessStartInfo{FileName="explorer.exe",Arguments="/select,\""+path+"\"",UseShellExecute=true});}catch{}}catch(Exception ex){ShowStatus(ErrorText(ex),true);}}
 
  static async void TransferToGame(){
   window.IsEnabled=false;try{

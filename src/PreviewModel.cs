@@ -123,7 +123,9 @@ public static class PreviewModel {
  }
 
  public static bool NeedsSteamSelection(MigrationPreview preview){
-  return preview!=null&&preview.Issues!=null&&preview.Issues.Any(i=>string.Equals(i,"MultipleSteamAccounts",StringComparison.OrdinalIgnoreCase));
+  if(preview==null)return false;
+  if(preview.CandidateSteamAccounts!=null&&preview.CandidateSteamAccounts.Count>1)return true;
+  return preview.Issues!=null&&preview.Issues.Any(i=>string.Equals(i,"MultipleSteamAccounts",StringComparison.OrdinalIgnoreCase));
  }
 
  public static bool NeedsFirstRunCoach(MigrationPreview preview){
@@ -141,6 +143,29 @@ public static class PreviewModel {
    if(issue.IndexOf("пользовательский профиль управления",StringComparison.OrdinalIgnoreCase)>=0)return true;
   }
   return false;
+ }
+
+ /// <summary>Human warning text for UI. Prefers core human Message; maps known kinds; unknown → neutral phrase.</summary>
+ public static string FormatWarning(AppLanguage lang,string targetProfile,string warning){
+  if(lang==null)throw new ArgumentNullException("lang");
+  if(string.IsNullOrWhiteSpace(warning))return null;
+  if(string.Equals(warning,"GeneralCategoryCheck",StringComparison.OrdinalIgnoreCase))
+   return string.Format(lang["GeneralWarn"],targetProfile??"");
+  int arrow=warning.IndexOf("→",StringComparison.Ordinal);
+  if(arrow<0)arrow=warning.IndexOf("->",StringComparison.Ordinal);
+  if(arrow>=0||warning.IndexOf("KEY_",StringComparison.OrdinalIgnoreCase)>=0)
+   return lang["Reason_ContextMismatch"];
+  if(IsHumanWarningMessage(warning))return warning.Trim();
+  return lang["Reason_CheckAssignment"];
+ }
+ public static bool IsHumanWarningMessage(string warning){
+  if(string.IsNullOrWhiteSpace(warning))return false;
+  string w=warning.Trim();
+  if(w.IndexOf("KEY_",StringComparison.OrdinalIgnoreCase)>=0)return false;
+  if(w.IndexOf("→",StringComparison.Ordinal)>=0||w.IndexOf("->",StringComparison.Ordinal)>=0)return false;
+  if(string.Equals(w,"GeneralCategoryCheck",StringComparison.OrdinalIgnoreCase))return false;
+  if(w.IndexOf(' ')<0&&w.IndexOf('—')<0&&w.Length<40&&w.All(c=>char.IsLetterOrDigit(c)||c=='_'))return false;
+  return true;
  }
 }
 }

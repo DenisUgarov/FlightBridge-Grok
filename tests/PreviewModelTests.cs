@@ -34,6 +34,9 @@ public static class PreviewModelTests {
 
   var multi=new MigrationPreview{Issues=new List<string>{"MultipleSteamAccounts"},CandidateSteamAccounts=new List<SteamAccount>{new SteamAccount{Id="1",HasMsfs2020=true,HasMsfs2024=true},new SteamAccount{Id="2",HasMsfs2020=true,HasMsfs2024=true}},NextStep="ChooseSteamAccount"};
   if(!PreviewModel.NeedsSteamSelection(multi))throw new Exception("steam");
+  var multiCandidates=new MigrationPreview{CandidateSteamAccounts=new List<SteamAccount>{new SteamAccount{Id="1",HasMsfs2020=true,HasMsfs2024=true},new SteamAccount{Id="2",HasMsfs2020=true,HasMsfs2024=true}}};
+  if(!PreviewModel.NeedsSteamSelection(multiCandidates))throw new Exception("candidates-only steam");
+
   if(multi.CandidateSteamAccounts.Count!=2)throw new Exception("candidates");
 
   var coach=new MigrationPreview{Issues=new List<string>{"Сначала один раз сохраните пользовательский профиль управления в MSFS 2024."},NextStep="Сначала один раз сохраните пользовательский профиль управления в MSFS 2024."};
@@ -68,6 +71,13 @@ public static class PreviewModelTests {
   }
   if(AppLocalization.Resolve("ru")["Restore"].IndexOf("как было",StringComparison.OrdinalIgnoreCase)<0)
    throw new Exception("RU Restore should be Вернуть как было");
+
+  var en=AppLocalization.Resolve("en");
+  var ru=AppLocalization.Resolve("ru");
+  if(PreviewModel.FormatWarning(en,"P","Please re-check throttle")!="Please re-check throttle")throw new Exception("human warn");
+  if(PreviewModel.FormatWarning(en,"P","WeirdEngineToken_XYZ")!=en["Reason_CheckAssignment"])throw new Exception("unknown warn");
+  if(ru["Reason_CheckAssignment"].IndexOf("Проверьте это назначение",StringComparison.Ordinal)<0)throw new Exception("ru check");
+
   Console.WriteLine("PreviewModel, Message, Confirm, localization audit passed.");
   return 0;
  }
