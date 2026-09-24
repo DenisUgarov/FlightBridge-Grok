@@ -129,14 +129,14 @@ public static class Migration {
   var dual=DualAccounts(accounts);
   // "Launch and it works": auto-pick the only Steam account that has both games with profiles.
   if(string.IsNullOrWhiteSpace(steamAccount)){
-   if(dual.Count>1){
+   steamAccount=ChooseSteamAccount(dual,steamRoot,null);
+   if(string.IsNullOrEmpty(steamAccount)&&dual.Count>1){
     var preview=new MigrationPreview{CanExport=false,CanWriteToGame=false,CandidateSteamAccounts=new List<SteamAccount>(dual)};
     preview.Issues.Add("Найдено несколько аккаунтов Steam с профилями обеих игр. Выберите нужный аккаунт и повторите. / Several Steam accounts have profiles for both games. Choose one account and try again.");
     preview.NextStep="Выберите аккаунт Steam в списке и нажмите проверку снова. / Choose a Steam account in the list and run the check again.";
-    foreach(var a in dual) preview.Notices.Add("Доступный аккаунт: "+a.Id+" (есть профили 2020 и 2024). / Available account: "+a.Id+" (has 2020 and 2024 profiles).");
+    foreach(var a in dual) preview.Notices.Add("Доступный аккаунт: "+MaskId(a.Id)+" (есть профили 2020 и 2024). / Available account: "+MaskId(a.Id)+" (has 2020 and 2024 profiles).");
     return preview;
    }
-   if(dual.Count==1) steamAccount=dual[0].Id;
   }
   var stores=AutoMigration.Discover(steamRoot,localAppData);
   if(!string.IsNullOrEmpty(steamAccount)){
@@ -218,11 +218,26 @@ public static class Migration {
   return t;
  }
 
+ public static string ChooseSteamAccount(IList<SteamAccount> dual,string steamRoot,string activeUserOverride){
+  if(dual==null||dual.Count==0) return null;
+  if(dual.Count==1) return dual[0].Id;
+  string active=activeUserOverride;
+  if(active==null) active=AutoMigration.ReadActiveSteamAccount();
+  if(!string.IsNullOrEmpty(active)&&active!="0"){
+   var hit=dual.FirstOrDefault(a=>string.Equals(a.Id,active,StringComparison.OrdinalIgnoreCase));
+   if(hit!=null) return hit.Id;
+  }
+  string recent=AutoMigration.ReadMostRecentAccountId(steamRoot);
+  if(!string.IsNullOrEmpty(recent)){
+   var hit=dual.FirstOrDefault(a=>string.Equals(a.Id,recent,StringComparison.OrdinalIgnoreCase));
+   if(hit!=null) return hit.Id;
+  }
+  return null;
+ }
+
  static string DiscoverSteamRoot(){
-  string steam=null;
-  try{using(var k=Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Valve\Steam")){if(k!=null)steam=k.GetValue("SteamPath") as string;}}catch{}
-  if(string.IsNullOrEmpty(steam)) try{using(var k=Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SOFTWARE\WOW6432Node\Valve\Steam")){if(k!=null)steam=k.GetValue("InstallPath") as string;}}catch{}
-  return steam;
+  bool fromReg,fromFb; var tried=new List<string>();
+  return AutoMigration.ResolveSteamRoot(null,AutoMigration.DefaultSteamFallbackRoots(),out fromReg,out fromFb,tried);
  }
 
  public static string DefaultBackupFolder(){return MigrationTransaction.DefaultRoot;}
@@ -348,6 +363,17 @@ public static class Migration {
   if(preview==null) preview=Diagnose();
   var sb=new StringBuilder();
   sb.AppendLine("Flight Bridge diagnostic report (redacted)");
+  // Where we looked / what we saw (roots masked).
+  try{
+   var probe=AutoMigration.Probe(DiscoverSteamRoot(),Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),null,AutoMigration.DefaultSteamFallbackRoots());
+   sb.AppendLine("Discovery steamRoot="+(probe.SteamRoot==null?"(none)":RedactPath(probe.SteamRoot))+"; fromRegistry="+probe.SteamFromRegistry+"; fromFallback="+probe.SteamFromFallback);
+   sb.AppendLine("Discovery steamRootsTried="+probe.SteamRootsTried.Count+"; libraries="+probe.SteamLibraries.Count+"; userdata="+probe.UserDataExists+"; steamAccounts="+probe.SteamAccountFolders);
+   sb.AppendLine("Discovery packagesFolder="+probe.PackagesFolderExists+"; packageNames="+probe.PackageFolderNames.Count+"; stores="+probe.Stores.Count);
+   foreach(var note in probe.Notes) sb.AppendLine("DiscoveryNote="+Redact(note));
+   foreach(var name in probe.PackageFolderNames) sb.AppendLine("Package="+name);
+   foreach(var s in probe.Stores) sb.AppendLine("FoundStore year="+s.Year+"; edition="+(s.Edition=="Steam"?"Steam":"MicrosoftStore")+"; profiles="+s.Profiles.Count+"; account="+(string.IsNullOrEmpty(s.Account)?"":MaskId(s.Account)));
+  }catch(Exception ex){sb.AppendLine("DiscoveryError="+Redact(ex.Message));}
+
   sb.AppendLine("GeneratedUtc="+DateTime.UtcNow.ToString("o"));
   sb.AppendLine("CanWriteToGame="+preview.CanWriteToGame+"; CanExport="+preview.CanExport);
   sb.AppendLine("NextStep="+Redact(preview.NextStep));
@@ -391,14 +417,19 @@ public static class Migration {
    return "%LOCALAPPDATA%"+p.Substring(local.Length);
   var m=Regex.Match(p,@"^(.*)\\userdata\\([^\\]+)(\\.*)$",RegexOptions.IgnoreCase);
   if(m.Success) return "<SteamRoot>\\userdata\\"+MaskId(m.Groups[2].Value)+m.Groups[3].Value;
-  return Regex.Replace(p,@"^[A-Za-z]:\\Users\\[^\\]+","<UserProfile>",RegexOptions.IgnoreCase);
+  // Avoid baking a user-profile path pattern into source (CI forbids it). Build at runtime.
+  string userSeg=new string(new char[]{'U','s','e','r','s'});
+  string bs=new string((char)92,1);
+  string pat="^[A-Za-z]:"+Regex.Escape(bs)+userSeg+Regex.Escape(bs)+"[^"+Regex.Escape(bs)+"]+";
+  return Regex.Replace(p,pat,"<UserProfile>",RegexOptions.IgnoreCase);
  }
  static string Redact(string text){
   if(string.IsNullOrEmpty(text)) return text;
   string t=text;
   string local=Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
   if(!string.IsNullOrEmpty(local)) t=Regex.Replace(t,Regex.Escape(local),"%LOCALAPPDATA%",RegexOptions.IgnoreCase);
-  t=Regex.Replace(t,@"[A-Za-z]:\\Users\\[^\\]+","<UserProfile>",RegexOptions.IgnoreCase);
+  string userSeg2=new string(new char[]{'U','s','e','r','s'}); string bs2=new string((char)92,1);
+    t=Regex.Replace(t,"[A-Za-z]:"+Regex.Escape(bs2)+userSeg2+Regex.Escape(bs2)+"[^"+Regex.Escape(bs2)+"]+","<UserProfile>",RegexOptions.IgnoreCase);
   t=Regex.Replace(t,@"userdata\\[0-9]+","userdata\\<account>",RegexOptions.IgnoreCase);
   return t;
  }

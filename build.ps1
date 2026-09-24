@@ -43,6 +43,11 @@ try {
  if ($LASTEXITCODE -ne 0) { throw 'Migration facade test build failed' }
  & .\dist\MigrationTests.exe
  if ($LASTEXITCODE -ne 0) { throw 'Migration facade tests failed' }
+
+ & $compiler /nologo /target:exe /out:dist\DiscoveryTests.exe /r:System.Core.dll /r:System.Xml.Linq.dll src\Core.cs src\AutoMigration.cs src\MigrationTransaction.cs src\Migration.cs tests\DiscoveryTests.cs
+ if ($LASTEXITCODE -ne 0) { throw 'Discovery test build failed' }
+ & .\dist\DiscoveryTests.exe
+ if ($LASTEXITCODE -ne 0) { throw 'Discovery tests failed' }
  & $compiler /nologo /target:exe /out:dist\AppLocalizationTests.exe /r:System.Core.dll src\AppLocalization.cs tests\AppLocalizationTests.cs
  if ($LASTEXITCODE -ne 0) { throw 'App localization test build failed' }
  & .\dist\AppLocalizationTests.exe
@@ -81,6 +86,6 @@ $zip = Join-Path $release 'FlightBridge-0.5.1-Portable.zip'
 Compress-Archive -Path (Join-Path $portable '*') -DestinationPath $zip -Force
 $releaseHashes = Get-FileHash -LiteralPath (Join-Path $release 'INSTALL Flight Bridge 0.5.1.exe'),(Join-Path $portable 'FlightBridge.exe'),$zip -Algorithm SHA256
 $releaseHashes | ForEach-Object { '{0}  {1}' -f $_.Hash,$_.Path.Substring($release.Length+1) } | Set-Content -LiteralPath (Join-Path $release 'SHA256.txt') -Encoding ASCII
-foreach($name in @('CoreTests.exe','AutoMigrationTests.exe','MigrationTests.exe','AppLocalizationTests.exe','DeviceCheckTests.exe','FlightBridge-Diagnostics.exe')){
+foreach($name in @('CoreTests.exe','AutoMigrationTests.exe','MigrationTests.exe','DiscoveryTests.exe','AppLocalizationTests.exe','DeviceCheckTests.exe','FlightBridge-Diagnostics.exe')){
  $source=Join-Path $distRoot $name;if(Test-Path -LiteralPath $source){Move-Item -LiteralPath $source -Destination (Join-Path $developer $name) -Force}
 }

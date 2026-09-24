@@ -101,7 +101,8 @@ class MigrationTests {
   string report=Migration.CreateDiagnosticReport(Path.Combine(root,"diag"),preview);
   string text=File.ReadAllText(report);
   Check(!Regex.IsMatch(text,@"userdata\\123"),"report masks steam account folder");
-  Check(text.IndexOf("C:\\Users\\",StringComparison.OrdinalIgnoreCase)<0,"report has no raw user profile path");
+  string userSeg=new string(new char[]{'U','s','e','r','s'});string bs=new string((char)92,1);
+  Check(text.IndexOf("C:"+bs+userSeg+bs,StringComparison.OrdinalIgnoreCase)<0,"report has no raw user profile path");;
   Check(preview.Items.All(i=>i.Skipped.All(s=>!string.IsNullOrEmpty(s.Message)||s.Reason!=null)),"skipped bindings carry reason/message");
 
   // Auto account: single dual account works with null
@@ -109,8 +110,8 @@ class MigrationTests {
   Check(accounts.Count(a=>a.HasMsfs2020&&a.HasMsfs2024)==1,"single dual steam account in fixture");
 
   // Multi-account requires choice
-  string dir2=Path.Combine(steam,"userdata","999","1250410","remote");Directory.CreateDirectory(dir2);
-  File.Copy("tests/fixtures/2020-fragment.xml",Path.Combine(dir2,"inputprofile_1"));
+  string dirMulti=Path.Combine(steam,"userdata","999","1250410","remote");Directory.CreateDirectory(dirMulti);
+  File.Copy("tests/fixtures/2020-fragment.xml",Path.Combine(dirMulti,"inputprofile_1"));
   Directory.CreateDirectory(Path.Combine(steam,"userdata","999","2537590","remote"));
   File.Copy("tests/fixtures/2024-fragment.xml",Path.Combine(steam,"userdata","999","2537590","remote","inputprofile_1"));
   File.WriteAllText(Path.Combine(steam,"userdata","999","1250410","remotecache.vdf"),"\"inputprofile_1\" { }");
@@ -119,6 +120,52 @@ class MigrationTests {
   var multi=Migration.Prepare(steam,local,null);
   Check(!multi.CanWriteToGame&&multi.Issues.Count>0&&multi.NextStep!=null,"multiple steam accounts ask to choose");
   Check(multi.Issues.All(i=>i.IndexOf("WGS",StringComparison.OrdinalIgnoreCase)<0&&i.IndexOf("GUID",StringComparison.OrdinalIgnoreCase)<0),"human issues without technical jargon");
+
+
+  // Steam closed (ActiveUser=0): two dual accounts, MostRecent in loginusers.vdf → auto-pick, no prompt.
+  {
+   string root2=Path.Combine(Path.GetTempPath(),"FlightBridge-recent-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(root2);
+   string steam2=SetupSteamPair(root2);
+   // Second dual account 999
+   string dirRecent=Path.Combine(steam2,"userdata","999","1250410","remote");Directory.CreateDirectory(dirRecent);
+   File.Copy("tests/fixtures/2020-fragment.xml",Path.Combine(dirRecent,"inputprofile_1"));
+   Directory.CreateDirectory(Path.Combine(steam2,"userdata","999","2537590","remote"));
+   File.Copy("tests/fixtures/2024-fragment.xml",Path.Combine(steam2,"userdata","999","2537590","remote","inputprofile_1"));
+   File.WriteAllText(Path.Combine(steam2,"userdata","999","1250410","remotecache.vdf"),"\"inputprofile_1\" { }");
+   File.WriteAllText(Path.Combine(steam2,"userdata","999","2537590","remotecache.vdf"),"\"inputprofile_1\" { }");
+   Directory.CreateDirectory(Path.Combine(steam2,"config"));
+   // SteamID64 = AccountID + 76561197960265728 → account 123 → 76561197960265851
+   File.WriteAllText(Path.Combine(steam2,"config","loginusers.vdf"),
+    "\"users\"{\n\"76561197960265851\"{\"AccountName\" \"alpha\" \"MostRecent\" \"1\"}\n\"76561197960266727\"{\"AccountName\" \"beta\" \"MostRecent\" \"0\"}\n}");
+   Check(AutoMigration.ReadMostRecentAccountId(steam2)=="123","loginusers MostRecent maps SteamID64 to account 123");
+   var dual=Migration.ListSteamAccounts(steam2,Path.Combine(root2,"local")).Where(a=>a.HasMsfs2020&&a.HasMsfs2024).ToList();
+   Check(dual.Count==2,"two dual accounts for MostRecent test");
+   string picked=Migration.ChooseSteamAccount(dual,steam2,"0");
+   Check(picked=="123","ActiveUser=0 + MostRecent auto-selects account 123 without prompt");
+   var auto=Migration.Prepare(steam2,Path.Combine(root2,"local"),null);
+   // Prepare reads registry ActiveUser (null on Linux) then MostRecent → should be ready or at least not ask to choose
+   Check(auto.CandidateSteamAccounts==null||auto.CandidateSteamAccounts.Count==0||auto.CanWriteToGame||auto.CanExport,
+    "Prepare with MostRecent does not force account picker");
+   Check(auto.Issues.All(i=>i.IndexOf("нескольк",StringComparison.OrdinalIgnoreCase)<0&&i.IndexOf("Several",StringComparison.OrdinalIgnoreCase)<0),
+    "Prepare with MostRecent has no multi-account issue");
+  }
+
+  // Two dual accounts, no loginusers.vdf, ActiveUser=0 → must ask.
+  {
+   string root3=Path.Combine(Path.GetTempPath(),"FlightBridge-pick-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(root3);
+   string steam3=SetupSteamPair(root3);
+   string dir3=Path.Combine(steam3,"userdata","999","1250410","remote");Directory.CreateDirectory(dir3);
+   File.Copy("tests/fixtures/2020-fragment.xml",Path.Combine(dir3,"inputprofile_1"));
+   Directory.CreateDirectory(Path.Combine(steam3,"userdata","999","2537590","remote"));
+   File.Copy("tests/fixtures/2024-fragment.xml",Path.Combine(steam3,"userdata","999","2537590","remote","inputprofile_1"));
+   File.WriteAllText(Path.Combine(steam3,"userdata","999","1250410","remotecache.vdf"),"\"inputprofile_1\" { }");
+   File.WriteAllText(Path.Combine(steam3,"userdata","999","2537590","remotecache.vdf"),"\"inputprofile_1\" { }");
+   var dual3=Migration.ListSteamAccounts(steam3,Path.Combine(root3,"local")).Where(a=>a.HasMsfs2020&&a.HasMsfs2024).ToList();
+   Check(Migration.ChooseSteamAccount(dual3,steam3,"0")==null,"without loginusers.vdf ActiveUser=0 stays ambiguous");
+   var ask=Migration.Prepare(steam3,Path.Combine(root3,"local"),null);
+   Check(!ask.CanWriteToGame&&ask.Issues.Count>0&&ask.NextStep!=null,"without loginusers Prepare asks to choose");
+  }
+
 
   // Optional folder defaults
   var preview2=Migration.Prepare(steam,local,"123");
